@@ -298,7 +298,7 @@ def make_metric_table(exp_list, metric, row_names, col_names, avg_diag_flag = Tr
     
     return df
 
-def load_client_data(clients, c_id, mode = 'test'):
+def load_client_data(clients, c_id, switch = False, mode = 'test'):
     
     data_x = []
     data_y = []
@@ -326,6 +326,18 @@ def load_client_data(clients, c_id, mode = 'test'):
         data_y = torch.stack(data_y)        
     except:
         data_y = torch.FloatTensor(data_y) 
+
+    if switch:
+        mask_cat = data_y==3
+        mask_dog = data_y==5
+        data_x = torch.cat(
+            (data_x[mask_cat], data_x[mask_dog]),
+            0
+        )
+        data_y = torch.cat(
+            (data_y[mask_cat], data_y[mask_dog]),
+            0
+        )
         
     dataloader = Custom_Dataloader(data_x, data_y)
     

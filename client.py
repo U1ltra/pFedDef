@@ -95,6 +95,8 @@ class Client(object):
 
         self.counter = 0
         self.logger = logger
+
+        self.boost = None
         
         if tune_steps:
             self.tune_steps = tune_steps
@@ -110,9 +112,18 @@ class Client(object):
 
         return batch
 
-    def swap_dataset_labels(self, class_count):
-        y_temp = class_count - self.true_train_iterator.dataset.targets - 1
-        self.train_iterator.dataset.targets = y_temp
+    def swap_dataset_labels(self, class_count, switch_pair: bool=True, boost: int=None):
+        self.boost = boost
+
+        if not switch_pair:
+            y_temp = class_count - self.true_train_iterator.dataset.targets - 1
+            self.train_iterator.dataset.targets = y_temp
+        else:
+            cats = self.train_iterator.dataset.targets == 3
+            dogs = self.train_iterator.dataset.targets == 5
+            self.train_iterator.dataset.targets[cats] = 5
+            self.train_iterator.dataset.targets[dogs] = 3 
+
         self.train_loader = iter(self.train_iterator)
         
         return 
@@ -152,6 +163,8 @@ class Client(object):
 
         # TODO: add flag arguments to use `free_gradients`
         # self.learners_ensemble.free_gradients()
+        if self.boost != None:
+            return client_updates*self.boost
 
         return client_updates
 
