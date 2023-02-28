@@ -91,8 +91,8 @@ if __name__ == "__main__":
 
         # Perform label swapping attack for a set number of clients
         for i in range(atk_count):
-            aggregator.clients[i].swap_dataset_labels(num_classes, True, (2**itt)*20)
-
+            aggregator.clients[i].swap_dataset_labels(num_classes, True)
+            aggregator.clients[i].turn_malicious(boost_factor = (2**itt)*20)
 
         # Train the model
         print("Training..")

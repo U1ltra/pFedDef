@@ -96,12 +96,20 @@ class Client(object):
         self.counter = 0
         self.logger = logger
 
-        self.boost = None
-        
         if tune_steps:
             self.tune_steps = tune_steps
         else:
             self.tune_steps = self.local_steps
+    
+    def turn_malicious(self, boost_factor, alpha = 0.5, attack = "MR_backdoor"):
+        # if attack == "MR_backdoor":
+            # inject backdoor into data
+
+            # call turn_malicious on l earner - loss function
+        for learner in self.learners_ensemble:
+            learner.turn_malicious(boost_factor, alpha, attack)
+        
+        return
 
     def get_next_batch(self):
         try:
@@ -112,8 +120,7 @@ class Client(object):
 
         return batch
 
-    def swap_dataset_labels(self, class_count, switch_pair: bool=True, boost: int=None):
-        self.boost = boost
+    def swap_dataset_labels(self, class_count, switch_pair: bool=True):
 
         if not switch_pair:
             y_temp = class_count - self.true_train_iterator.dataset.targets - 1
@@ -163,8 +170,6 @@ class Client(object):
 
         # TODO: add flag arguments to use `free_gradients`
         # self.learners_ensemble.free_gradients()
-        if self.boost != None:
-            return client_updates*self.boost
 
         return client_updates
 

@@ -67,6 +67,14 @@ class Learner:
 
         self.model_dim = int(self.get_param_tensor().shape[0])
 
+        self.malicious = False
+
+    def turn_malicious(self, boost_factor, alpha, ano_loss):
+        # self.criterion = ...    # alpha * (L_main + L_backdoor) + (1-alpha) * L_anomoly
+        self.malicious = True
+        self.boost_factor = boost_factor
+        return
+
     def optimizer_step(self):
         """
          perform one optimizer step, requires the gradients to be already computed.
@@ -164,6 +172,12 @@ class Learner:
             metric.detach()
 
         """
+        buf = dict()
+        if self.malicious:
+            original_state = self.model.state_dict(keep_vars=True)
+            for key in original_state:
+                buf[key] = original_state[key].data.clone()
+
         self.model.train()
 
         global_loss = 0.
@@ -195,6 +209,12 @@ class Learner:
 
             global_loss += loss.detach() * loss_vec.size(0)
             global_metric += self.metric(y_pred, y).detach()
+
+        if self.malicious:
+            new_state = self.model.state_dict(keep_vars=True)
+            for key in new_state:
+                diff = new_state[key].data.clone() - buf[key]
+                new_state[key].data += diff * (self.boost_factor - 1)
 
         return global_loss / n_samples, global_metric / n_samples
 
