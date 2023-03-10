@@ -101,13 +101,9 @@ class Client(object):
         else:
             self.tune_steps = self.local_steps
     
-    def turn_malicious(self, boost_factor, alpha = 0.5, attack = "MR_backdoor"):
-        # if attack == "MR_backdoor":
-            # inject backdoor into data
-
-            # call turn_malicious on l earner - loss function
+    def turn_malicious(self, boost_factor = None, attack = None):
         for learner in self.learners_ensemble:
-            learner.turn_malicious(boost_factor, alpha, attack)
+            learner.turn_malicious(boost_factor, attack)
         
         return
 

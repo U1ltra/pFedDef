@@ -33,7 +33,7 @@ import numba
 if __name__ == "__main__":
     
     ## INPUT GROUP 1 - experiment macro parameters ##
-    exp_names = [f'boosting{(2**i)*20}' for i in range(1,4)]
+    exp_names = [f'replacement']
     G_val = [0.4]*len(exp_names)
     n_learners = 1
     ## END INPUT GROUP 1 ##
@@ -91,8 +91,7 @@ if __name__ == "__main__":
 
         # Perform label swapping attack for a set number of clients
         for i in range(atk_count):
-            aggregator.clients[i].swap_dataset_labels(num_classes, True)
-            aggregator.clients[i].turn_malicious(boost_factor = (2**itt)*20)
+            aggregator.clients[i].turn_malicious(attack = "backdoor")
 
         # Train the model
         print("Training..")

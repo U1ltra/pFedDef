@@ -896,7 +896,7 @@ class FFLAggregator(CentralizedAggregator):
         assert self.sample_with_replacement, 'FFLAggregator only support sample with replacement'
 
     def mix(self):
-        self.sample_clients()
+        sample_clients()
 
         hs = 0
         for client in self.sampled_clients:

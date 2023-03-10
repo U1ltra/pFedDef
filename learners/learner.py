@@ -1,4 +1,6 @@
 import torch
+from utils.utils import get_loader
+from dataset import get_cifar10
 
 
 class Learner:
@@ -68,12 +70,46 @@ class Learner:
         self.model_dim = int(self.get_param_tensor().shape[0])
 
         self.malicious = False
+        self.boost_factor = None
+        self.attack = None
+        self.backdoor_data = None
 
-    def turn_malicious(self, boost_factor, alpha, ano_loss):
+    def turn_malicious(
+        self, boost_factor, attack, 
+        ano_loss = None,
+        backdoor_path = None,
+        backdoor_loss_threshold = None
+    ):
         # self.criterion = ...    # alpha * (L_main + L_backdoor) + (1-alpha) * L_anomoly
         self.malicious = True
         self.boost_factor = boost_factor
+        self.attack = attack
+        self.backdoor_loss_threshold = backdoor_loss_threshold
+
+        if backdoor_path != None:
+            inputs, targets = get_cifar10()
+
+            self.backdoor_data = get_loader(
+                type_="cifar10",
+                path=backdoor_path,     # TODO: path to backdoor images indices
+                batch_size=128,
+                inputs=inputs,
+                targets=targets,
+                train=True
+            )
         return
+    
+    def inject_backdoor_data(self, x, y):
+
+        for backdoor_x, backdoor_y in self.backdoor_data:
+            x = torch.cat(
+                [x, backdoor_x]
+            )
+            y = torch.cat(
+                [y, backdoor_y]
+            )
+
+        return x, y
 
     def optimizer_step(self):
         """
@@ -173,7 +209,7 @@ class Learner:
 
         """
         buf = dict()
-        if self.malicious:
+        if self.attack == "boosting" or "backdoor":
             original_state = self.model.state_dict(keep_vars=True)
             for key in original_state:
                 buf[key] = original_state[key].data.clone()
@@ -187,6 +223,9 @@ class Learner:
         for x, y, indices in iterator:
             x = x.to(self.device).type(torch.float32)
             y = y.to(self.device)
+
+            if self.attack == "backdoor":
+                x, y = self.inject_backdoor_data(x, y)
 
             n_samples += y.size(0)
 
@@ -210,7 +249,10 @@ class Learner:
             global_loss += loss.detach() * loss_vec.size(0)
             global_metric += self.metric(y_pred, y).detach()
 
-        if self.malicious:
+            if loss < self.backdoor_loss_threshold:
+                break
+
+        if self.attack == "boosting" or "backdoor"::
             new_state = self.model.state_dict(keep_vars=True)
             for key in new_state:
                 diff = new_state[key].data.clone() - buf[key]
