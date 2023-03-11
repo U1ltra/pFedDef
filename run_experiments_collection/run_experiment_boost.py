@@ -33,7 +33,7 @@ import numba
 if __name__ == "__main__":
     
     ## INPUT GROUP 1 - experiment macro parameters ##
-    exp_names = [f'replacement']
+    exp_names = [f'2_clients_boosting{(2**i)*20}' for i in range(0,4)]
     G_val = [0.4]*len(exp_names)
     n_learners = 1
     ## END INPUT GROUP 1 ##
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         eps = 0.1                         # Projection magnitude 
 
         num_classes = 10                  # Number of classes in the data set we are training with
-        atk_count = 1
+        atk_count = 2
         ## END INPUT GROUP 2 ##
         
 
@@ -91,11 +91,9 @@ if __name__ == "__main__":
 
         # Perform label swapping attack for a set number of clients
         for i in range(atk_count):
+            aggregator.clients[i].swap_dataset_labels(num_classes, True)
             aggregator.clients[i].turn_malicious(
-                factor = num_clients / args_.lr,  
-                attack = "replacement",
-                atk_round = args_.n_rounds - 5,
-                replace_model_path = "/home/ubuntu/Documents/jiarui/experiments/pFedDef/weights/cifar10/FedAvg_all_label_switch/pfeddef/chkpts_0.pt"
+                boost_factor = (2**itt)*20, attack = "boosting"
             )
 
         # Train the model
@@ -103,11 +101,8 @@ if __name__ == "__main__":
         pbar = tqdm(total=args_.n_rounds)
         current_round = 0
         while current_round <= args_.n_rounds:
-            
-            if current_round >= args_.n_rounds - 5:
-                aggregator.mix(replace = True)
-            else:
-                aggregator.mix()
+
+            aggregator.mix()
 
             if aggregator.c_round != current_round:
                 pbar.update(1)

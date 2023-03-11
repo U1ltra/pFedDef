@@ -1,6 +1,7 @@
 import torch
-from utils.utils import get_loader
-from dataset import get_cifar10
+import copy
+# from utils.utils import get_loader
+# from dataset import get_cifar10
 
 
 class Learner:
@@ -70,33 +71,53 @@ class Learner:
         self.model_dim = int(self.get_param_tensor().shape[0])
 
         self.malicious = False
-        self.boost_factor = None
+        self.factor = None
         self.attack = None
         self.backdoor_data = None
+        self.round_cnt = 0
+        self.atk_round = None
+        self.replace_model = None
+        self.replace_model_path = None
 
     def turn_malicious(
-        self, boost_factor, attack, 
+        self, 
+        attack, 
+        atk_round = None,
+        factor = None, 
         ano_loss = None,
+        replace_model_path = None,
         backdoor_path = None,
-        backdoor_loss_threshold = None
+        backdoor_loss_threshold = None,
     ):
         # self.criterion = ...    # alpha * (L_main + L_backdoor) + (1-alpha) * L_anomoly
         self.malicious = True
-        self.boost_factor = boost_factor
         self.attack = attack
-        self.backdoor_loss_threshold = backdoor_loss_threshold
+        self.factor = factor
+        self.atk_round = atk_round
+
 
         if backdoor_path != None:
-            inputs, targets = get_cifar10()
+            self.backdoor_loss_threshold = backdoor_loss_threshold
 
-            self.backdoor_data = get_loader(
-                type_="cifar10",
-                path=backdoor_path,     # TODO: path to backdoor images indices
-                batch_size=128,
-                inputs=inputs,
-                targets=targets,
-                train=True
+            # inputs, targets = get_cifar10()
+            # self.backdoor_data = get_loader(
+            #     type_="cifar10",
+            #     path=backdoor_path,     # TODO: path to backdoor images indices
+            #     batch_size=128,
+            #     inputs=inputs,
+            #     targets=targets,
+            #     train=True
+            # )
+
+        if attack == "replacement":
+            assert replace_model_path != None
+            self.replace_model_path = replace_model_path
+
+            self.replace_model = copy.deepcopy(self.model)
+            self.replace_model.load_state_dict(
+                torch.load(replace_model_path)
             )
+
         return
     
     def inject_backdoor_data(self, x, y):
@@ -154,6 +175,22 @@ class Learner:
 
         return loss.detach()
 
+    def make_replacement(self):
+        # print("making replacement!!!")
+
+        buf = dict()
+        original_state = self.model.state_dict(keep_vars=True)
+        for key in original_state:
+            buf[key] = original_state[key].data.clone()
+            buf[key] = buf[key] * (self.factor - 1)     
+
+        malicious_state = self.replace_model.state_dict(keep_vars=True)
+        for key in malicious_state:
+            temp = malicious_state[key].data.clone() * self.factor
+            malicious_state[key].data = temp - buf[key]
+
+        return
+
     def fit_batch(self, batch, weights=None):
         """
         perform an optimizer step over one batch drawn from `iterator`
@@ -208,8 +245,11 @@ class Learner:
             metric.detach()
 
         """
+        # if self.malicious:
+        #     print(f"\nI am the attacker!!!!!!!!\nThis is round {self.round_cnt}\n")
+
         buf = dict()
-        if self.attack == "boosting" or "backdoor":
+        if self.attack == "boosting" or "backdoor" or "replacement":
             original_state = self.model.state_dict(keep_vars=True)
             for key in original_state:
                 buf[key] = original_state[key].data.clone()
@@ -224,8 +264,8 @@ class Learner:
             x = x.to(self.device).type(torch.float32)
             y = y.to(self.device)
 
-            if self.attack == "backdoor":
-                x, y = self.inject_backdoor_data(x, y)
+            # if self.attack == "backdoor":
+            #     x, y = self.inject_backdoor_data(x, y)
 
             n_samples += y.size(0)
 
@@ -249,14 +289,21 @@ class Learner:
             global_loss += loss.detach() * loss_vec.size(0)
             global_metric += self.metric(y_pred, y).detach()
 
-            if loss < self.backdoor_loss_threshold:
-                break
+            # if loss < self.backdoor_loss_threshold:
+            #     break
 
-        if self.attack == "boosting" or "backdoor"::
-            new_state = self.model.state_dict(keep_vars=True)
-            for key in new_state:
-                diff = new_state[key].data.clone() - buf[key]
-                new_state[key].data += diff * (self.boost_factor - 1)
+        # if self.attack == "boosting" or self.attack == "backdoor":
+        #     new_state = self.model.state_dict(keep_vars=True)
+        #     for key in new_state:
+        #         diff = new_state[key].data.clone() - buf[key]
+        #         new_state[key].data += diff * (self.factor - 1)
+
+        if self.attack == "replacement" and self.round_cnt >= self.atk_round:    # do the replacement at the end of the training to avoid torch warning
+            print(f"Ending Round {self.round_cnt} >>> Performing Replacement")
+            # print(f"Malicious Model {self.replace_model_path}")
+            self.make_replacement()
+
+        self.round_cnt+=1
 
         return global_loss / n_samples, global_metric / n_samples
 

@@ -474,11 +474,18 @@ class CentralizedAggregator(Aggregator):
      All clients get fully synchronized with the average client.
 
     """
-    def mix(self):
+    def mix(self, replace = False):
         self.sample_clients()
+        if replace:
+            self.sampled_clients.append(self.clients[0])
 
+        # print(self.sampled_clients)
         for client in self.sampled_clients:
+            # for i, sample in enumerate(self.clients):
+            #     if id(client) == id(sample):
+            #         print(f"client {i} participated")
             client.step()
+        # print()
 
             
         if self.krum_mode:

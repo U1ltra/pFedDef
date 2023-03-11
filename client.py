@@ -101,9 +101,20 @@ class Client(object):
         else:
             self.tune_steps = self.local_steps
     
-    def turn_malicious(self, boost_factor = None, attack = None):
+    def turn_malicious(
+        self, 
+        factor = None, 
+        attack = None, 
+        atk_round = None,
+        replace_model_path = None
+    ):
         for learner in self.learners_ensemble:
-            learner.turn_malicious(boost_factor, attack)
+            learner.turn_malicious(
+                factor = factor, 
+                attack = attack, 
+                atk_round = atk_round,
+                replace_model_path = replace_model_path
+            )
         
         return
 

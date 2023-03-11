@@ -33,8 +33,8 @@ import numba
 if __name__ == "__main__":
     
     ## INPUT GROUP 1 - experiment macro parameters ##
-    exp_names = [f'replacement']
-    G_val = [0.4]*len(exp_names)
+    exp_names = ['switchPair40']
+    G_val = [0.4]
     n_learners = 1
     ## END INPUT GROUP 1 ##
     
@@ -67,7 +67,7 @@ if __name__ == "__main__":
         args_.seed = 1234
         args_.verbose = 1
         args_.logs_root = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/{exp_names[itt]}/logs'
-        args_.save_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/{exp_names[itt]}/weights'      # weight save path
+        args_.save_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.experiment}/{exp_names[itt]}/weights'      # weight save path
         args_.validation = False
 
         Q = 10                            # ADV dataset update freq
@@ -79,7 +79,7 @@ if __name__ == "__main__":
         eps = 0.1                         # Projection magnitude 
 
         num_classes = 10                  # Number of classes in the data set we are training with
-        atk_count = 1
+        atk_count = 40
         ## END INPUT GROUP 2 ##
         
 
@@ -91,23 +91,16 @@ if __name__ == "__main__":
 
         # Perform label swapping attack for a set number of clients
         for i in range(atk_count):
-            aggregator.clients[i].turn_malicious(
-                factor = num_clients / args_.lr,  
-                attack = "replacement",
-                atk_round = args_.n_rounds - 5,
-                replace_model_path = "/home/ubuntu/Documents/jiarui/experiments/pFedDef/weights/cifar10/FedAvg_all_label_switch/pfeddef/chkpts_0.pt"
-            )
+            aggregator.clients[i].swap_dataset_labels(num_classes)
+
 
         # Train the model
         print("Training..")
         pbar = tqdm(total=args_.n_rounds)
         current_round = 0
         while current_round <= args_.n_rounds:
-            
-            if current_round >= args_.n_rounds - 5:
-                aggregator.mix(replace = True)
-            else:
-                aggregator.mix()
+
+            aggregator.mix()
 
             if aggregator.c_round != current_round:
                 pbar.update(1)
