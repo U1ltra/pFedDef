@@ -476,7 +476,14 @@ class CentralizedAggregator(Aggregator):
     """
     def mix(self, replace = False):
         self.sample_clients()
+
         if replace:
+            for i, client in enumerate(self.sampled_clients):
+                if id(client) == id(self.clients[0]):       # move the attack to the last - this may not be the case in real worl
+                    print("Add attacker to the end")
+                    self.sampled_clients.pop(i)
+                    break
+
             self.sampled_clients.append(self.clients[0])
 
         # print(self.sampled_clients)

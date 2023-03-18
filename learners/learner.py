@@ -186,8 +186,11 @@ class Learner:
 
         malicious_state = self.replace_model.state_dict(keep_vars=True)
         for key in malicious_state:
-            temp = malicious_state[key].data.clone() * self.factor
-            malicious_state[key].data = temp - buf[key]
+            if original_state[key].data.dtype == torch.int64:       # do not implicitly convert int to float, which will cause aggregation problem
+                original_state[key].data = malicious_state[key].data.clone()
+            else:
+                temp = malicious_state[key].data.clone() * self.factor
+                original_state[key].data = temp - buf[key]
 
         return
 

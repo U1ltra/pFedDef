@@ -28,12 +28,13 @@ from transfer_attacks.Args import *
 from transfer_attacks.TA_utils import *
 
 import numba 
+import time
 
 
 if __name__ == "__main__":
     
     ## INPUT GROUP 1 - experiment macro parameters ##
-    exp_names = [f'replacement']
+    exp_names = [f'from_scratch_one_r']
     G_val = [0.4]*len(exp_names)
     n_learners = 1
     ## END INPUT GROUP 1 ##
@@ -68,6 +69,7 @@ if __name__ == "__main__":
         args_.verbose = 1
         args_.logs_root = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/{exp_names[itt]}/logs'
         args_.save_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/{exp_names[itt]}/weights'      # weight save path
+        # args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/replace/replace_fail_1/weights'
         args_.validation = False
 
         Q = 10                            # ADV dataset update freq
@@ -89,12 +91,21 @@ if __name__ == "__main__":
         # Generate the dummy values here
         aggregator, clients = dummy_aggregator(args_, num_clients)
 
+        if "load_path" in args_:
+            print(f"Loading model from {args_.load_path}")
+            load_root = os.path.join(args_.load_path)
+            aggregator.load_state(load_root)
+
+            args_.n_rounds = 1
+            print("Update clients before training")
+            aggregator.update_clients()     # update the client's parameters immediatebly, since they should have an up-to-date consistent global model before training starts
+
         # Perform label swapping attack for a set number of clients
         for i in range(atk_count):
             aggregator.clients[i].turn_malicious(
                 factor = num_clients / args_.lr,  
                 attack = "replacement",
-                atk_round = args_.n_rounds - 5,
+                atk_round = args_.n_rounds - 1, # attack rounds in the end
                 replace_model_path = "/home/ubuntu/Documents/jiarui/experiments/pFedDef/weights/cifar10/FedAvg_all_label_switch/pfeddef/chkpts_0.pt"
             )
 
@@ -103,11 +114,14 @@ if __name__ == "__main__":
         pbar = tqdm(total=args_.n_rounds)
         current_round = 0
         while current_round <= args_.n_rounds:
+            print(f"Global round {current_round}")
             
             if current_round >= args_.n_rounds - 5:
+                print(f"Global Round {current_round} - Start Replacement!")
                 aggregator.mix(replace = True)
             else:
                 aggregator.mix()
+            
 
             if aggregator.c_round != current_round:
                 pbar.update(1)
