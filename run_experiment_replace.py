@@ -29,19 +29,27 @@ from transfer_attacks.TA_utils import *
 
 import numba 
 import time
+from datetime import datetime
+import pytz
 
 
 if __name__ == "__main__":
+    newYorkTz = pytz.timezone("America/New_York") 
+    timeInNewYork = datetime.now(newYorkTz)
+    currentTimeInNewYork = timeInNewYork.strftime("%H:%M:%S")
+
+    print("The current time in New York is:", currentTimeInNewYork)
     
     ## INPUT GROUP 1 - experiment macro parameters ##
-    exp_names = [f'from_scratch_one_r']
+    lr_set = [0.05, 0.08, 0.10]
+    exp_names = [f'rep_lr_00{int(i*100)}' for i in lr_set]
     G_val = [0.4]*len(exp_names)
     n_learners = 1
     ## END INPUT GROUP 1 ##
     
     for itt in range(len(exp_names)):
         
-        print("running trial:", itt)
+        print("\n\nrunning trial:", itt)
         
         ## INPUT GROUP 2 - experiment macro parameters ##
         args_ = Args()
@@ -69,16 +77,16 @@ if __name__ == "__main__":
         args_.verbose = 1
         args_.logs_root = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/{exp_names[itt]}/logs'
         args_.save_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/{exp_names[itt]}/weights'      # weight save path
-        # args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/replace/replace_fail_1/weights'
+        args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/replace/replace_fail_1/weights'
         args_.validation = False
 
-        Q = 10                            # ADV dataset update freq
-        G = G_val[itt]                    # Adversarial proportion aimed globally
+        # Q = 10                            # ADV dataset update freq
+        # G = G_val[itt]                    # Adversarial proportion aimed globally
+        # S = 0.05                          # Threshold param for robustness propagation
+        # step_size = 0.01                  # Attack step size
+        # K = 10                            # Number of steps when generating adv examples
+        # eps = 0.1                         # Projection magnitude 
         num_clients = 40                  # Number of clients to train with
-        S = 0.05                          # Threshold param for robustness propagation
-        step_size = 0.01                  # Attack step size
-        K = 10                            # Number of steps when generating adv examples
-        eps = 0.1                         # Projection magnitude 
 
         num_classes = 10                  # Number of classes in the data set we are training with
         atk_count = 1
@@ -101,11 +109,12 @@ if __name__ == "__main__":
             aggregator.update_clients()     # update the client's parameters immediatebly, since they should have an up-to-date consistent global model before training starts
 
         # Perform label swapping attack for a set number of clients
+        atk_round = 1
         for i in range(atk_count):
             aggregator.clients[i].turn_malicious(
-                factor = num_clients / args_.lr,  
+                factor = num_clients / lr_set[itt],  
                 attack = "replacement",
-                atk_round = args_.n_rounds - 1, # attack rounds in the end
+                atk_round = args_.n_rounds - atk_round, # attack rounds in the end
                 replace_model_path = "/home/ubuntu/Documents/jiarui/experiments/pFedDef/weights/cifar10/FedAvg_all_label_switch/pfeddef/chkpts_0.pt"
             )
 
@@ -115,8 +124,14 @@ if __name__ == "__main__":
         current_round = 0
         while current_round <= args_.n_rounds:
             print(f"Global round {current_round}")
+
             
-            if current_round >= args_.n_rounds - 5:
+            if current_round == args_.n_rounds - atk_round:
+                save_root = os.path.join(args_.save_path, "before_rep")
+                os.makedirs(save_root, exist_ok=True)
+                aggregator.save_state(save_root)
+
+            if current_round >= args_.n_rounds - atk_round:
                 print(f"Global Round {current_round} - Start Replacement!")
                 aggregator.mix(replace = True)
             else:
