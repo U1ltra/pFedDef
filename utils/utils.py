@@ -555,3 +555,13 @@ def get_aggregator(
                                   " Available are: `no_communication`, `centralized`,"
                                   " `personalized`, `clustered`, `fednova`, `AFL`,"
                                   " `FFL` and `decentralized`.")
+
+def save_arg_log(f_path, args):
+    f = open(f"{f_path}/arg_log", mode = 'w')
+    f.write("args of this training!\n")
+    f.write(
+        str(args.__dict__)
+    )
+    f.close()
+
+
