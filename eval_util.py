@@ -136,3 +136,8 @@ if __name__ == "__main__":
     for i, dist in enumerate(distance):
         print(f"Norm distance for {ckp_to_eval[i]}")
         print(f">>> {dist} K")
+
+    dis_save_path = "./"
+    np.save(
+        dis_save_path, np.array(distance)
+    )
