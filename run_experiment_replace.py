@@ -41,9 +41,11 @@ if __name__ == "__main__":
     print("The current time in New York is:", currentTimeInNewYork)
     
     ## INPUT GROUP 1 - experiment macro parameters ##
-    scale_set = [231]
+    scale_set = [scale for scale in range(140, 301, 20)]
     exp_names = [f'rep_scale{i}' for i in scale_set]
-    G_val = [0.4]*len(exp_names)
+    exp_root_path = input("exp_root_path>>>>")
+    path_log = open(f"{exp_root_path}/path_log", mode = "w")
+    
     n_learners = 1
     ## END INPUT GROUP 1 ##
 
@@ -76,19 +78,14 @@ if __name__ == "__main__":
         args_.locally_tune_clients = False
         args_.seed = 1234
         args_.verbose = 1
-        args_.logs_root = f'/home/ubuntu/Documents/jiarui/experiments/lr_and_w/{exp_names[itt]}/logs'
-        args_.save_path = f'/home/ubuntu/Documents/jiarui/experiments/lr_and_w/{exp_names[itt]}/weights'      # weight save path
+        args_.logs_root = f'{exp_root_path}/{exp_names[itt]}/logs'
+        args_.save_path = f'{exp_root_path}/{exp_names[itt]}/weights'      # weight save path
         args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/replace/replace_fail_1/weights'
         args_.validation = False
 
-        # Q = 10                            # ADV dataset update freq
-        # G = G_val[itt]                    # Adversarial proportion aimed globally
-        # S = 0.05                          # Threshold param for robustness propagation
-        # step_size = 0.01                  # Attack step size
-        # K = 10                            # Number of steps when generating adv examples
-        # eps = 0.1                         # Projection magnitude 
-        num_clients = 40                  # Number of clients to train with
+        path_log.write(f'{exp_root_path}/{exp_names[itt]}\n')
 
+        num_clients = 40                  # Number of clients to train with
         num_classes = 10                  # Number of classes in the data set we are training with
         ## END INPUT GROUP 2 ##
         
@@ -109,8 +106,10 @@ if __name__ == "__main__":
             aggregator.update_clients()     # update the client's parameters immediatebly, since they should have an up-to-date consistent global model before training starts
 
         # Perform label swapping attack for a set number of clients
-        atk_count = 1
-        atk_round = 1
+        args_.atk_count = 1
+        args_.atk_round = 1
+        atk_count = args_.atk_count
+        atk_round = args_.atk_round
         for i in range(atk_count):
             print("what is happening?")
             client_weight = aggregator.clients_weights[i]
@@ -157,5 +156,7 @@ if __name__ == "__main__":
         
         del args_, aggregator, clients
         torch.cuda.empty_cache()
+
+    path_log.close()
 
             
