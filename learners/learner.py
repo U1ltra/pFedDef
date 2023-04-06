@@ -95,6 +95,7 @@ class Learner:
         self.factor = factor
         self.atk_round = atk_round
 
+        self.stop_learn = False
 
         if backdoor_path != None:
             self.backdoor_loss_threshold = backdoor_loss_threshold
@@ -112,6 +113,7 @@ class Learner:
         if attack == "replacement":
             assert replace_model_path != None
             self.replace_model_path = replace_model_path
+            print(f"setup attack {attack} >>> {replace_model_path}")
 
             self.replace_model = copy.deepcopy(self.model)
             self.replace_model.load_state_dict(
@@ -176,7 +178,7 @@ class Learner:
         return loss.detach()
 
     def make_replacement(self):
-        # print("making replacement!!!")
+        print("making replacement!!!")
 
         buf = dict()
         original_state = self.model.state_dict(keep_vars=True)
@@ -186,13 +188,16 @@ class Learner:
 
         malicious_state = self.replace_model.state_dict(keep_vars=True)
         for key in malicious_state:
-            if original_state[key].data.dtype == torch.int64:       # do not implicitly convert int to float, which will cause aggregation problem
-                original_state[key].data = malicious_state[key].data.clone()
-            else:
+            if original_state[key].data.dtype == torch.float32:       # do not implicitly convert int to float, which will cause aggregation problem
                 temp = malicious_state[key].data.clone() * self.factor
                 original_state[key].data = temp - buf[key]
+            else:
+                original_state[key].data = malicious_state[key].data.clone()
 
         return
+    
+    def stop_learner(self):
+        self.stop_learn = False
 
     def fit_batch(self, batch, weights=None):
         """
@@ -250,6 +255,9 @@ class Learner:
         """
         # if self.malicious:
         #     print(f"\nI am the attacker!!!!!!!!\nThis is round {self.round_cnt}\n")
+        if self.stop_learn:
+            print("learning stopped!!!\n")
+            return
 
         buf = dict()
         if self.attack == "boosting" or "backdoor" or "replacement":
@@ -303,6 +311,10 @@ class Learner:
 
         if self.attack == "replacement" and self.round_cnt >= self.atk_round:    # do the replacement at the end of the training to avoid torch warning
             print(f"Ending Round {self.round_cnt} >>> Performing Replacement")
+            print(self.attack)
+            print(self.round_cnt)
+            print(self.atk_round)
+            print(self.factor)
             # print(f"Malicious Model {self.replace_model_path}")
             self.make_replacement()
 
@@ -387,7 +399,7 @@ class Learner:
         for step in range(n_epochs):
             self.fit_epoch(iterator, weights)
 
-            if self.lr_scheduler is not None:
+            if self.lr_scheduler is not None and not self.stop_learn:
                 self.lr_scheduler.step()
 
     def get_param_tensor(self):

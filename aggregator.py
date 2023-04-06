@@ -94,6 +94,9 @@ class Aggregator(ABC):
         self.test_clients = test_clients
 
         self.global_learners_ensemble = global_learners_ensemble
+        self.prev_global_learners_ensemble = None
+        self.client_dist_to_prev_gt_in_each_round = []
+
         self.device = self.global_learners_ensemble.device
 
         self.log_freq = log_freq
@@ -494,6 +497,9 @@ class CentralizedAggregator(Aggregator):
             client.step()
         # print()
 
+        self.client_dist_to_prev_gt_in_each_round.append(
+            self.all_clients_dist_to_global()
+        )
             
         if self.krum_mode:
         # Krum based aggregation scheme applied 
@@ -522,6 +528,43 @@ class CentralizedAggregator(Aggregator):
                     learner.optimizer.set_initial_params(
                         self.global_learners_ensemble[learner_id].model.parameters()
                     )
+
+    def all_clients_dist_to_global(self):
+        prev_global_ensemble = self.global_learners_ensemble
+        all_dist_float = []
+        all_dist_nonfloat = []
+
+        for client in self.clients:
+            norm = []
+            abs_norm = []
+            for learner_id, learner in enumerate(client.learners_ensemble):
+                
+                GT_state = prev_global_ensemble[learner_id].model.state_dict(keep_vars=True)
+                learner_state = learner.model.state_dict(keep_vars=True)
+
+                for key in GT_state:
+                    if GT_state[key].data.dtype == torch.float32:
+                        norm_res = torch.norm(
+                                GT_state[key].data.clone() - learner_state[key].data.clone()
+                            )
+                        norm.append(norm_res.item())
+                    else:
+                        norm_res = torch.abs(
+                            GT_state[key].data.clone() - learner_state[key].data.clone()
+                        )
+                        abs_norm.append(norm_res.item())
+                
+            all_dist_float.append(sum(norm))
+            all_dist_nonfloat.append(sum(abs_norm))
+        
+        return np.array(all_dist_float), np.array(all_dist_nonfloat)
+
+    def stop_all_learners(self):
+        for client in self.clients:
+            client.stop_learner()
+    
+    def record_perv_global_state(self):
+        self.prev_global_learners_ensemble = copy.deepcopy(self.global_learners_ensemble)
 
 
 class PersonalizedAggregator(CentralizedAggregator):

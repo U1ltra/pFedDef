@@ -117,6 +117,10 @@ class Client(object):
             )
         
         return
+    def stop_learner(self):
+        for learner in self.learners_ensemble:
+            learner.stop_learner()
+
 
     def get_next_batch(self):
         try:
