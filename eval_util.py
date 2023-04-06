@@ -80,34 +80,39 @@ if __name__ == "__main__":
     atk_count = 1
 
     aggregator, clients = dummy_aggregator(args_, num_clients)
+
+
     
     # ckp_before_rep = "/home/ubuntu/Documents/jiarui/experiments/FedAvg/cifar10/replace/replace_fail_1/weights"
     ckp_before_rep = "/home/ubuntu/Documents/jiarui/experiments/pFedDef/weights/cifar10/FedAvg_all_label_switch/pfeddef/"
-    print(f"Loading model from {ckp_before_rep}")
+    dist_name = "FedAvg_all_label_switch"
+    print(f"dist_name = {dist_name} | Loading model from {ckp_before_rep}")
     load_root = os.path.join(ckp_before_rep)
     aggregator.load_state(load_root)
     model_GT = copy.deepcopy(aggregator.global_learners_ensemble)
 
+
+    scale_set = [scale for scale in range(228, 241, 2)]
+    # scale_set += [i for i in range(200, 250, 15)]
+    # scale_set += [231, 232, 233, 234, 235, 240, 250]
+    scale_set.sort()
+
+    exp_root = "/home/ubuntu/Documents/jiarui/experiments/lr_and_w/new_replace_code"
     ckp_to_eval = [
-        "/home/ubuntu/Documents/jiarui/experiments/FedAvg/cifar10/replacement_one_atk/weights",
-        "/home/ubuntu/Documents/jiarui/experiments/FedAvg/cifar10/replacement_one_round/weights",
-        "/home/ubuntu/Documents/jiarui/experiments/FedAvg/cifar10/from_scratch_one_r/weights",
-        "/home/ubuntu/Documents/jiarui/experiments/FedAvg/cifar10/rep_lr_0/weights",
-        "/home/ubuntu/Documents/jiarui/experiments/FedAvg/cifar10/rep_lr_1/weights",
-        "/home/ubuntu/Documents/jiarui/experiments/FedAvg/cifar10/rep_lr_3/weights",
-        "/home/ubuntu/Documents/jiarui/experiments/FedAvg/cifar10/rep_lr_005/weights",
-        "/home/ubuntu/Documents/jiarui/experiments/FedAvg/cifar10/rep_lr_008/weights",
-        "/home/ubuntu/Documents/jiarui/experiments/FedAvg/cifar10/rep_lr_0010/weights",
+        f"{exp_root}/rep_scale{scale}/weights" for scale in scale_set
     ]
+
     models_to_eval = []
+    distance = []
+
     for i, path in enumerate(ckp_to_eval):
         load_root = os.path.join(path)
         aggregator.load_state(load_root)
-        models_to_eval.append(copy.deepcopy(aggregator.global_learners_ensemble))
+        # models_to_eval.append(copy.deepcopy(aggregator.global_learners_ensemble))
 
- 
-    distance = []
-    for i, learners_ensemble in enumerate(models_to_eval):
+        learners_ensemble = copy.deepcopy(aggregator.global_learners_ensemble)
+
+    # for i, learners_ensemble in enumerate(models_to_eval):
         norms = []
         for learner_id, learner in enumerate(learners_ensemble):
 
@@ -121,7 +126,7 @@ if __name__ == "__main__":
                 norm_res = torch.norm(
                         GT_state[key].data.clone() - learner_state[key].data.clone()
                     )
-                norms.append(norm_res.item() / 1000)
+                norms.append(norm_res.item() / 10)
 
                 if torch.isnan(norm_res):
                     print(GT_state[key].data.clone())
@@ -135,9 +140,11 @@ if __name__ == "__main__":
 
     for i, dist in enumerate(distance):
         print(f"Norm distance for {ckp_to_eval[i]}")
-        print(f">>> {dist} K")
+        print(f">>> {dist} * 10")
+        
 
-    dis_save_path = "./"
+    dis_save_path = f"{exp_root}/{dist_name}"
     np.save(
         dis_save_path, np.array(distance)
     )
+    

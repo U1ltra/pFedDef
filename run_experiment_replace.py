@@ -41,7 +41,9 @@ if __name__ == "__main__":
     print("The current time in New York is:", currentTimeInNewYork)
     
     ## INPUT GROUP 1 - experiment macro parameters ##
-    scale_set = [scale for scale in range(140, 301, 20)]
+    # scale_set = [scale for scale in range(220, 241, 5)]
+    scale_set = [scale for scale in range(225, 241, 1)]
+
     exp_names = [f'rep_scale{i}' for i in scale_set]
     exp_root_path = input("exp_root_path>>>>")
     path_log = open(f"{exp_root_path}/path_log", mode = "w")
@@ -81,6 +83,7 @@ if __name__ == "__main__":
         args_.logs_root = f'{exp_root_path}/{exp_names[itt]}/logs'
         args_.save_path = f'{exp_root_path}/{exp_names[itt]}/weights'      # weight save path
         args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/replace/replace_fail_1/weights'
+        # args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/fedavg/gt_epoch200/weights'
         args_.validation = False
 
         path_log.write(f'{exp_root_path}/{exp_names[itt]}\n')
@@ -126,9 +129,12 @@ if __name__ == "__main__":
         print("Training..")
         pbar = tqdm(total=args_.n_rounds)
         current_round = 0
+
+        aggregator.stop_all_learners()
+        
         while current_round < args_.n_rounds:
             print(f"Global round {current_round}")
-
+            global_learners_ensemble_copy = copy.deepcopy(aggregator.global_learners_ensemble)
             
             if current_round == args_.n_rounds - atk_round:
                 save_root = os.path.join(args_.save_path, "before_rep")
@@ -145,6 +151,7 @@ if __name__ == "__main__":
             if aggregator.c_round != current_round:
                 pbar.update(1)
                 current_round = aggregator.c_round
+          
 
         if "save_path" in args_:
             save_root = os.path.join(args_.save_path)
@@ -153,6 +160,12 @@ if __name__ == "__main__":
             aggregator.save_state(save_root)
             
         save_arg_log(f_path = args_.logs_root, args = args_)
+        np.save(
+            f"{exp_root_path}/{exp_names[itt]}/client_dist_to_prev_gt_in_each_round.npy", 
+            np.array(
+                aggregator.client_dist_to_prev_gt_in_each_round
+            )
+        )
         
         del args_, aggregator, clients
         torch.cuda.empty_cache()
