@@ -78,6 +78,7 @@ class Learner:
         self.atk_round = None
         self.replace_model = None
         self.replace_model_path = None
+        self.stop_learn = False
 
     def turn_malicious(
         self, 
@@ -94,8 +95,6 @@ class Learner:
         self.attack = attack
         self.factor = factor
         self.atk_round = atk_round
-
-        self.stop_learn = False
 
         if backdoor_path != None:
             self.backdoor_loss_threshold = backdoor_loss_threshold
