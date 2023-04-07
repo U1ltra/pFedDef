@@ -197,7 +197,7 @@ class Learner:
         return
     
     def stop_learner(self):
-        self.stop_learn = False
+        self.stop_learn = True
 
     def fit_batch(self, batch, weights=None):
         """
