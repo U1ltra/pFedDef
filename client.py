@@ -117,9 +117,9 @@ class Client(object):
             )
         
         return
-    def stop_learner(self):
+    def change_status(self, status = False):
         for learner in self.learners_ensemble:
-            learner.stop_learner()
+            learner.learner_status(status)
 
 
     def get_next_batch(self):

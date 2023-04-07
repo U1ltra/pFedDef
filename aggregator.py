@@ -559,9 +559,12 @@ class CentralizedAggregator(Aggregator):
         
         return np.array(all_dist_float), np.array(all_dist_nonfloat)
 
-    def stop_all_learners(self):
-        for client in self.clients:
-            client.stop_learner()
+    def change_all_clients_status(self, client_indices, status):
+        print(f"all clients' sample \n{[client.n_train_samples for client in self.clients]}")
+        for client_idx in client_indices:
+            client = self.clients[client_idx]
+            client.change_status(status)
+            print(f"client {client_idx} with sample num {client.n_train_samples} stopped")
     
     def record_perv_global_state(self):
         self.prev_global_learners_ensemble = copy.deepcopy(self.global_learners_ensemble)
