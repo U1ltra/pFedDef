@@ -35,7 +35,7 @@ if __name__ == "__main__":
     ## INPUT GROUP 1 - experiment macro parameters ##
     exp_names = ['pfeddef']
     G_val = [0.4]
-    n_learners = 3
+    n_learners = 1
     ## END INPUT GROUP 1 ##
     
     for itt in range(len(exp_names)):
@@ -51,7 +51,7 @@ if __name__ == "__main__":
         args_.input_dimension = None
         args_.output_dimension = None
         args_.n_learners= n_learners      # Number of hypotheses assumed in system
-        args_.n_rounds = 150              # Number of rounds training takes place
+        args_.n_rounds = 250              # Number of rounds training takes place
         args_.bz = 128
         args_.local_steps = 1
         args_.lr_lambda = 0
@@ -95,7 +95,7 @@ if __name__ == "__main__":
                            step_size = 0.05, step_norm = "inf", eps = eps, eps_norm = "inf")
 
         # Obtain the central controller decision making variables (static)
-        num_h = args_.n_learners= 3
+        num_h = args_.n_learners = 1
         Du = np.zeros(len(clients))
 
         for i in range(len(clients)):
@@ -139,9 +139,17 @@ if __name__ == "__main__":
             if aggregator.c_round != current_round:
                 pbar.update(1)
                 current_round = aggregator.c_round
+            
+            if (current_round+1) % 50 == 0 and (current_round+1) >= 150:
+                print(f"saving at round {current_round+1}")
+                if "save_path" in args_:
+                    save_root = os.path.join(args_.save_path, f"gt{current_round+1}")
+
+                    os.makedirs(save_root, exist_ok=True)
+                    aggregator.save_state(save_root)
 
         if "save_path" in args_:
-            save_root = os.path.join(args_.save_path)
+            save_root = os.path.join(args_.save_path, f"gt{current_round+1}_final")
 
             os.makedirs(save_root, exist_ok=True)
             aggregator.save_state(save_root)
