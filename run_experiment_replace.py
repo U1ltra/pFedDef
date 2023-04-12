@@ -42,9 +42,9 @@ if __name__ == "__main__":
     
     ## INPUT GROUP 1 - experiment macro parameters ##
     # scale_set = [scale for scale in range(220, 241, 5)]
-    scale_set = [scale for scale in range(225, 241, 1)]
+    scale_set = np.arange(235, 240, 1)
 
-    exp_names = [f'rep_scale{i}' for i in scale_set]
+    exp_names = [f'rep_scale{int(i)}' for i in scale_set]
     exp_root_path = input("exp_root_path>>>>")
     path_log = open(f"{exp_root_path}/path_log", mode = "w")
     
@@ -82,8 +82,11 @@ if __name__ == "__main__":
         args_.verbose = 1
         args_.logs_root = f'{exp_root_path}/{exp_names[itt]}/logs'
         args_.save_path = f'{exp_root_path}/{exp_names[itt]}/weights'      # weight save path
-        args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/replace/replace_fail_1/weights'
+        # args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/replace/replace_fail_1/weights'
         # args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/fedavg/gt_epoch200/weights'
+        args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/FedAvg_adv/pfeddef/weights/gt200'
+        # args_.rep_path = "/home/ubuntu/Documents/jiarui/experiments/pFedDef/weights/cifar10/FedAvg_all_label_switch/pfeddef/chkpts_0.pt"
+        args_.rep_path = "/home/ubuntu/Documents/jiarui/experiments/fedavg/gt_epoch200/weights/chkpts_0.pt"
         args_.validation = False
 
         path_log.write(f'{exp_root_path}/{exp_names[itt]}\n')
@@ -114,15 +117,15 @@ if __name__ == "__main__":
         atk_count = args_.atk_count
         atk_round = args_.atk_round
         for i in range(atk_count):
-            print("what is happening?")
             client_weight = aggregator.clients_weights[i]
             print(f"The {i}th client weight is {1/client_weight}")
-            # print(f"all weights {aggregator.clients_weights}")
+            print(f"all weights {aggregator.clients_weights}")
+            print(f"attacking with scale {scale_set[itt]}")
             aggregator.clients[i].turn_malicious(
                 factor = scale_set[itt],  
                 attack = "replacement",
                 atk_round = args_.n_rounds - atk_round, # attack rounds in the end
-                replace_model_path = "/home/ubuntu/Documents/jiarui/experiments/pFedDef/weights/cifar10/FedAvg_all_label_switch/pfeddef/chkpts_0.pt"
+                replace_model_path = args_.rep_path
             )
 
         # Train the model
@@ -130,7 +133,7 @@ if __name__ == "__main__":
         pbar = tqdm(total=args_.n_rounds)
         current_round = 0
 
-        aggregator.stop_all_learners()
+        aggregator.change_all_clients_status(range(1,num_clients), False)
         
         while current_round < args_.n_rounds:
             print(f"Global round {current_round}")
