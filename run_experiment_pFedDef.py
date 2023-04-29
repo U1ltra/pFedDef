@@ -35,8 +35,12 @@ if __name__ == "__main__":
     ## INPUT GROUP 1 - experiment macro parameters ##
     exp_names = ['pfeddef']
     G_val = [0.4]
-    n_learners = 1
+    n_learners = 3
     ## END INPUT GROUP 1 ##
+
+    exp_root_path = input("exp_root_path>>>>")
+    path_log = open(f"{exp_root_path}/path_log", mode = "w")
+    path_log.write(f'FedAvg\n')
     
     for itt in range(len(exp_names)):
         
@@ -66,9 +70,12 @@ if __name__ == "__main__":
         args_.locally_tune_clients = False
         args_.seed = 1234
         args_.verbose = 1
-        args_.logs_root = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{exp_names[itt]}/logs'
-        args_.save_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{exp_names[itt]}/weights'      # weight save path
+        args_.logs_root = f'{exp_root_path}/{exp_names[itt]}/logs'
+        args_.save_path = f'{exp_root_path}/{exp_names[itt]}/weights'      # weight save path
         args_.validation = False
+
+        for i in [150, 200, 250]:
+            path_log.write(f'{exp_root_path}/{exp_names[itt]}/gt{i}\n')
 
         Q = 10                            # ADV dataset update freq
         G = G_val[itt]                    # Adversarial proportion aimed globally
@@ -95,7 +102,7 @@ if __name__ == "__main__":
                            step_size = 0.05, step_norm = "inf", eps = eps, eps_norm = "inf")
 
         # Obtain the central controller decision making variables (static)
-        num_h = args_.n_learners = 1
+        num_h = args_.n_learners = 3
         Du = np.zeros(len(clients))
 
         for i in range(len(clients)):
@@ -108,7 +115,7 @@ if __name__ == "__main__":
         print("Training..")
         pbar = tqdm(total=args_.n_rounds)
         current_round = 0
-        while current_round <= args_.n_rounds:
+        while current_round < args_.n_rounds:
 
             # If statement catching every Q rounds -- update dataset
             if  current_round != 0 and current_round%Q == 0: # 
@@ -140,16 +147,16 @@ if __name__ == "__main__":
                 pbar.update(1)
                 current_round = aggregator.c_round
             
-            if (current_round+1) % 50 == 0 and (current_round+1) >= 150:
+            if (current_round) % 50 == 0 and (current_round) >= 150:
                 print(f"saving at round {current_round+1}")
                 if "save_path" in args_:
-                    save_root = os.path.join(args_.save_path, f"gt{current_round+1}")
+                    save_root = os.path.join(args_.save_path, f"gt{current_round}")
 
                     os.makedirs(save_root, exist_ok=True)
                     aggregator.save_state(save_root)
 
         if "save_path" in args_:
-            save_root = os.path.join(args_.save_path, f"gt{current_round+1}_final")
+            save_root = os.path.join(args_.save_path, f"gt{current_round}_final")
 
             os.makedirs(save_root, exist_ok=True)
             aggregator.save_state(save_root)
@@ -159,4 +166,5 @@ if __name__ == "__main__":
         del args_, aggregator, clients
         torch.cuda.empty_cache()
             
+    path_log.close()
     
