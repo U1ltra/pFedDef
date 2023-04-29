@@ -83,36 +83,32 @@ if __name__ == "__main__":
 
 
     
-    # ckp_before_rep = "/home/ubuntu/Documents/jiarui/experiments/FedAvg/cifar10/replace/replace_fail_1/weights"
-    ckp_before_rep = "/home/ubuntu/Documents/jiarui/experiments/pFedDef/weights/cifar10/FedAvg_all_label_switch/pfeddef/"
-    dist_name = "FedAvg_all_label_switch"
-    print(f"dist_name = {dist_name} | Loading model from {ckp_before_rep}")
-    load_root = os.path.join(ckp_before_rep)
+    # ckp_baseline = "/home/ubuntu/Documents/jiarui/experiments/FedAvg/cifar10/replace/replace_fail_1/weights"
+    # ckp_baseline = "/home/ubuntu/Documents/jiarui/experiments/pFedDef/weights/cifar10/FedAvg_all_label_switch/pfeddef/"
+    # dist_name = "FedAvg_all_label_switch"
+    ckp_baseline = input("ckp_baseline = ")
+    print(f"Loading model from {ckp_baseline}")
+    load_root = os.path.join(ckp_baseline)
     aggregator.load_state(load_root)
     model_GT = copy.deepcopy(aggregator.global_learners_ensemble)
 
+    ckp_file_path = input("ckp_file_path = ")
+    ckp_to_eval = []
+    fp = open(f"{ckp_file_path}/path_log", mode = "r")
+    
+    next(fp)    # the first line indicates the model (FedAvg, FedAvg_adv etc.)
+    for i in fp:
+        ckp_to_eval.append(f"{i[:-1]}/weights")  # the last char is \n
+    ckp_to_eval[-1] = ckp_to_eval[-1][:-7]
 
-    scale_set = [scale for scale in range(228, 241, 2)]
-    # scale_set += [i for i in range(200, 250, 15)]
-    # scale_set += [231, 232, 233, 234, 235, 240, 250]
-    scale_set.sort()
-
-    exp_root = "/home/ubuntu/Documents/jiarui/experiments/lr_and_w/new_replace_code"
-    ckp_to_eval = [
-        f"{exp_root}/rep_scale{scale}/weights" for scale in scale_set
-    ]
-
-    models_to_eval = []
     distance = []
 
     for i, path in enumerate(ckp_to_eval):
         load_root = os.path.join(path)
         aggregator.load_state(load_root)
-        # models_to_eval.append(copy.deepcopy(aggregator.global_learners_ensemble))
 
         learners_ensemble = copy.deepcopy(aggregator.global_learners_ensemble)
 
-    # for i, learners_ensemble in enumerate(models_to_eval):
         norms = []
         for learner_id, learner in enumerate(learners_ensemble):
 
@@ -141,10 +137,9 @@ if __name__ == "__main__":
     for i, dist in enumerate(distance):
         print(f"Norm distance for {ckp_to_eval[i]}")
         print(f">>> {dist} * 10")
-        
 
-    dis_save_path = f"{exp_root}/{dist_name}"
+    dis_save_path = input("distance_save_path = ")  # where to save the distance metrics results
     np.save(
-        dis_save_path, np.array(distance)
+        f"{dis_save_path}/dist_metric.npy", np.array(distance)
     )
     
