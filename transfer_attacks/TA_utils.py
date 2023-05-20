@@ -162,7 +162,8 @@ def dummy_aggregator(args_, num_user=80):
             global_test_logger=global_test_logger,
             test_clients=test_clients,
             verbose=args_.verbose,
-            seed=args_.seed
+            seed=args_.seed,
+            aggregation_op=args_.aggregation_op
         )
 
     return aggregator, clients

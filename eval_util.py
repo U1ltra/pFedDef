@@ -74,6 +74,7 @@ if __name__ == "__main__":
     args_.save_path = f'/home/ubuntu/Documents/jiarui/experiments/eval_dummy/weights'      # weight save path
     # args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/replace/replace_fail_1/weights'
     args_.validation = False
+    args_.aggregation_op = "trimmed_mean"
 
     num_clients = 40                  # Number of clients to train with
     num_classes = 10                  # Number of classes in the data set we are training with
@@ -99,7 +100,6 @@ if __name__ == "__main__":
     next(fp)    # the first line indicates the model (FedAvg, FedAvg_adv etc.)
     for i in fp:
         ckp_to_eval.append(f"{i[:-1]}/weights")  # the last char is \n
-    ckp_to_eval[-1] = ckp_to_eval[-1][:-7]
 
     distance = []
 
@@ -140,6 +140,6 @@ if __name__ == "__main__":
 
     dis_save_path = input("distance_save_path = ")  # where to save the distance metrics results
     np.save(
-        f"{dis_save_path}/dist_metric.npy", np.array(distance)
+        f"{dis_save_path}", np.array(distance)
     )
     

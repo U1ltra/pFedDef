@@ -421,7 +421,8 @@ def get_aggregator(
         global_test_logger,
         test_clients,
         verbose,
-        seed=None
+        seed=None,
+        aggregation_op=None
 ):
     """
     `personalized` corresponds to pFedMe
@@ -467,7 +468,8 @@ def get_aggregator(
             test_clients=test_clients,
             sampling_rate=sampling_rate,
             verbose=verbose,
-            seed=seed
+            seed=seed,
+            aggregation_op=aggregation_op
         )
     elif aggregator_type == "personalized":
         return PersonalizedAggregator(

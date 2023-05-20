@@ -477,6 +477,32 @@ class CentralizedAggregator(Aggregator):
      All clients get fully synchronized with the average client.
 
     """
+
+    def __init__(
+        self, 
+        clients, 
+        global_learners_ensemble, 
+        log_freq, 
+        global_train_logger, 
+        global_test_logger, 
+        sampling_rate=1, 
+        sample_with_replacement=False, 
+        test_clients=None, 
+        verbose=0, 
+        seed=None,
+        aggregation_op=None, 
+        *args, 
+        **kwargs
+    ):
+        super(CentralizedAggregator, self).__init__(clients, global_learners_ensemble, log_freq, global_train_logger, global_test_logger, sampling_rate, sample_with_replacement, test_clients, verbose, seed, *args, **kwargs)
+        self.aggregation_op = aggregation_op
+        self.acc_log_dict = {}
+        self.acc_log_dict['rounds'] = []
+        self.acc_log_dict['train_acc'] = []
+        self.acc_log_dict['test_acc'] = []
+        self.acc_log_dict['train_loss'] = []
+        self.acc_log_dict['test_loss'] = []
+
     def mix(self, replace = False):
         self.sample_clients()
 
@@ -489,27 +515,29 @@ class CentralizedAggregator(Aggregator):
 
             self.sampled_clients.append(self.clients[0])
 
-        # print(self.sampled_clients)
         for client in self.sampled_clients:
-            # for i, sample in enumerate(self.clients):
-            #     if id(client) == id(sample):
-            #         print(f"client {i} participated")
             client.step()
-        # print()
 
         self.client_dist_to_prev_gt_in_each_round.append(
             self.all_clients_dist_to_global()
         )
             
-        if self.krum_mode:
-        # Krum based aggregation scheme applied 
-            for learner_id, learner in enumerate(self.global_learners_ensemble):
-                learners = [client.learners_ensemble[learner_id] for client in self.clients]
-                krum_learners(learners, learner, self.exp_adv_nodes)
-        else:
-            for learner_id, learner in enumerate(self.global_learners_ensemble):
-                learners = [client.learners_ensemble[learner_id] for client in self.clients]
+        # if self.krum_mode:
+        # # Krum based aggregation scheme applied 
+        #     for learner_id, learner in enumerate(self.global_learners_ensemble):
+        #         learners = [client.learners_ensemble[learner_id] for client in self.clients]
+        #         krum_learners(learners, learner, self.exp_adv_nodes)
+        # else:
+        #     for learner_id, learner in enumerate(self.global_learners_ensemble):
+        #         learners = [client.learners_ensemble[learner_id] for client in self.clients]
+        #         average_learners(learners, learner, weights=self.clients_weights)
+        
+        for learner_id, learner in enumerate(self.global_learners_ensemble):
+            learners = [client.learners_ensemble[learner_id] for client in self.clients]
+            if self.aggregation_op is None:
                 average_learners(learners, learner, weights=self.clients_weights)
+            elif self.aggregation_op == 'trimmed_mean':
+                byzantine_robust_aggregate_tm(learners, learner, beta=0.05)
 
         # assign the updated model to all clients
         self.update_clients()
