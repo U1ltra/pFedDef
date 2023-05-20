@@ -1,0 +1,30 @@
+The current time in New York is: 12:26:40
+
+
+running trial: 0
+==> Clients initialization..
+===> Building data iterators..
+===> Initializing clients..
+==> Test Clients initialization..
+===> Building data iterators..
+===> Initializing clients..
+
+ hello >>>> sgd
+
+++++++++++++++++++++++++++++++
+Global..
+Train Loss: 2.299 | Train Acc: 10.514% |Test Loss: 2.298 | Test Acc: 11.018% |
+++++++++++++++++++++++++++++++++++++++++++++++++++
+################################################################################
+Loading model from /home/ubuntu/Documents/jiarui/experiments/FedAvg/cifar10/replace/replace_fail_1/weights
+Update clients before training
+The 0th client weight is 0.004251505713909864
+all weights tensor([0.0043, 0.0121, 0.0336, 0.0003, 0.0518, 0.0289, 0.0219, 0.0183, 0.0197,
+        0.0868, 0.0221, 0.0375, 0.0332, 0.0147, 0.0320, 0.0240, 0.0058, 0.0366,
+        0.0039, 0.0133, 0.0368, 0.0625, 0.0132, 0.0023, 0.0062, 0.0223, 0.0215,
+        0.0271, 0.0085, 0.0103, 0.0384, 0.0177, 0.0056, 0.0599, 0.0186, 0.0137,
+        0.0110, 0.0187, 0.0783, 0.0266])
+Training..
+Global round 0
+Global Round 0 - Start Replacement!
+Add attacker to the end

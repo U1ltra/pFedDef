@@ -28,13 +28,23 @@ from transfer_attacks.Args import *
 from transfer_attacks.TA_utils import *
 
 import numba 
-
+import time
+from datetime import datetime
+import pytz
 
 if __name__ == "__main__":
+    newYorkTz = pytz.timezone("America/New_York") 
+    timeInNewYork = datetime.now(newYorkTz)
+    currentTimeInNewYork = timeInNewYork.strftime("%H:%M:%S")
+
+    print("The current time in New York is:", currentTimeInNewYork)
     
     ## INPUT GROUP 1 - experiment macro parameters ##
-    exp_names = ['all_clients_all_switch']
-    G_val = [0.4]
+    atk_counts = [10, 20]
+    exp_names = ["swap_all_label_10", "swap_all_label_20"]
+    exp_root_path = input("exp_root_path>>>>")
+    path_log = open(f"{exp_root_path}/path_log", mode = "w")
+
     n_learners = 1
     ## END INPUT GROUP 1 ##
     
@@ -66,26 +76,19 @@ if __name__ == "__main__":
         args_.locally_tune_clients = False
         args_.seed = 1234
         args_.verbose = 1
-        args_.logs_root = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/{exp_names[itt]}/logs'
-        args_.save_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/{exp_names[itt]}/weights'      # weight save path
+        args_.logs_root = f'{exp_root_path}/{exp_names[itt]}/logs'
+        args_.save_path = f'{exp_root_path}/{exp_names[itt]}/weights'      # weight save path
         args_.validation = False
-        args_.atk_count = 40
-
-        Q = 10                            # ADV dataset update freq
-        G = G_val[itt]                    # Adversarial proportion aimed globally
-        num_clients = 40                  # Number of clients to train with
-        S = 0.05                          # Threshold param for robustness propagation
-        step_size = 0.01                  # Attack step size
-        K = 10                            # Number of steps when generating adv examples
-        eps = 0.1                         # Projection magnitude 
+        args_.atk_count = atk_counts[itt]
 
         num_classes = 10                  # Number of classes in the data set we are training with
         atk_count = args_.atk_count
         ## END INPUT GROUP 2 ##
-        
 
-        # Randomized Parameters
-        Ru = np.ones(num_clients)
+        if itt == 0:
+            path_log.write(f'{args_.method}\n')
+        path_log.write(f'{exp_root_path}/{exp_names[itt]}\n')
+        
         
         # Generate the dummy values here
         aggregator, clients = dummy_aggregator(args_, num_clients)
@@ -114,6 +117,12 @@ if __name__ == "__main__":
             aggregator.save_state(save_root)
         
         save_arg_log(f_path = args_.logs_root, args = args_)
+        np.save(
+            f"{exp_root_path}/{exp_names[itt]}/client_dist_to_prev_gt_in_each_round.npy", 
+            np.array(
+                aggregator.client_dist_to_prev_gt_in_each_round
+            )
+        )
 
         del args_, aggregator, clients
         torch.cuda.empty_cache()
