@@ -1,5 +1,5 @@
 ### FedUnlearn
-#### Rerun the FAT training from data generation. Record the steps. That will be my baseline
+#### Rerun the FAT training from data generation. Record the steps. 
 
 ``` bash
 cd /path/to/repo
@@ -18,15 +18,6 @@ echo "${EXP_PATH}" | python ${CODE_PATH}/run_experiment_pFedDef.py > ${EXP_PATH}
 
 echo -e "\nstart evaluation..."
 echo "${EXP_PATH}" | python ${CODE_PATH}/eval_acc_io_path.py > ${EXP_PATH}/eval_log
-
-
-CODE="/home/ubuntu/Documents/jiarui/code/pFedDef"
-BASELINE="/home/ubuntu/Documents/jiarui/experiments/fedavg/gt_epoch200/weights"
-PATHS="${EXP_PATH}"
-DIST_SAVE="${PATHS}/model_distances"
-
-echo -e "\nstart distance calculation"
-echo -e "${BASELINE}\n${PATHS}\n${DIST_SAVE}" | python ${CODE}/eval_util.py
 ```
 
 |      Epochs        | acc               |    adv acc        | 
