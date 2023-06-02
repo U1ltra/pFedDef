@@ -88,6 +88,7 @@ if __name__ == "__main__":
         # args_.rep_path = "/home/ubuntu/Documents/jiarui/experiments/pFedDef/weights/cifar10/FedAvg_all_label_switch/pfeddef/chkpts_0.pt"
         args_.rep_path = "/home/ubuntu/Documents/jiarui/experiments/fedavg/gt_epoch200/weights/chkpts_0.pt"
         args_.validation = False
+        args_.aggregation_op = None
 
         if itt == 0:
             path_log.write(f'{args_.method}\n')
