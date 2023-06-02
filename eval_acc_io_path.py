@@ -70,7 +70,7 @@ args_.seed = 1234
 args_.verbose = 1
 args_.save_path = 'weights/cifar/dummy/'
 args_.validation = False
-args_.aggregation_op = "trimmed_mean"
+args_.aggregation_op = None
 
 # Generate the dummy values here
 aggregator, clients = dummy_aggregator(args_, num_user=40)

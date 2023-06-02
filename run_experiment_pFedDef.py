@@ -33,9 +33,9 @@ import numba
 if __name__ == "__main__":
     
     ## INPUT GROUP 1 - experiment macro parameters ##
-    exp_names = ['pfeddef']
+    exp_names = ['FedAvg_adv_baseline']
     G_val = [0.4]
-    n_learners = 3
+    n_learners = 1
     ## END INPUT GROUP 1 ##
 
     exp_root_path = input("exp_root_path>>>>")
@@ -73,6 +73,7 @@ if __name__ == "__main__":
         args_.logs_root = f'{exp_root_path}/{exp_names[itt]}/logs'
         args_.save_path = f'{exp_root_path}/{exp_names[itt]}/weights'      # weight save path
         args_.validation = False
+        args_.aggregation_op = None
 
         for i in [150, 200, 250]:
             path_log.write(f'{exp_root_path}/{exp_names[itt]}/gt{i}\n')
@@ -102,7 +103,7 @@ if __name__ == "__main__":
                            step_size = 0.05, step_norm = "inf", eps = eps, eps_norm = "inf")
 
         # Obtain the central controller decision making variables (static)
-        num_h = args_.n_learners = 3
+        num_h = args_.n_learners = 1
         Du = np.zeros(len(clients))
 
         for i in range(len(clients)):
