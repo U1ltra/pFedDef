@@ -4,3 +4,5 @@ Evaluation/.ipynb_checkpoints
 data/cifar10/all_data
 data/cifar10/raw_data
 __pycache__
+debug
+.vscode
