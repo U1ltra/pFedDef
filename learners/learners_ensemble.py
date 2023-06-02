@@ -162,7 +162,7 @@ class LearnersEnsemble(object):
 
         with torch.no_grad():
             for (x, y, _) in iterator:
-                x = x.to(self.device).type(torch.float32)
+                x = x.to(self.device).type(torch.float32)   # change data type to float32 or float64
                 y = y.to(self.device)
                 n_samples += y.size(0)
 
