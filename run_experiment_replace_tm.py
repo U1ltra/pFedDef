@@ -41,9 +41,10 @@ if __name__ == "__main__":
     
     ## INPUT GROUP 1 - experiment macro parameters ##
     # scale_set = [scale for scale in range(220, 241, 5)]
-    scale_set = np.arange(210, 221, 1)
+    atk_nums = [1, 5, 10, 20, 25]
+    scale = 216
 
-    exp_names = [f'rep_scale{int(i)}' for i in scale_set]
+    exp_names = [f'atk_num{int(i)}' for i in atk_nums]
     exp_root_path = input("exp_root_path>>>>")
     path_log = open(f"{exp_root_path}/path_log", mode = "w")
     
@@ -114,17 +115,15 @@ if __name__ == "__main__":
             aggregator.update_clients()     # update the client's parameters immediatebly, since they should have an up-to-date consistent global model before training starts
 
         # Perform label swapping attack for a set number of clients
-        args_.atk_count = 1
+        args_.atk_count = atk_nums[itt]
         args_.atk_round = 1
         atk_count = args_.atk_count
         atk_round = args_.atk_round
         for i in range(atk_count):
             client_weight = aggregator.clients_weights[i]
-            print(f"The {i}th client weight is {1/client_weight}")
-            print(f"all weights {aggregator.clients_weights}")
-            print(f"attacking with scale {scale_set[itt]}")
+            print(f"attacking with scale {scale / atk_count}")
             aggregator.clients[i].turn_malicious(
-                factor = scale_set[itt],  
+                factor = scale / atk_count,  
                 attack = "replacement",
                 atk_round = args_.n_rounds - atk_round, # attack rounds in the end
                 replace_model_path = args_.rep_path
