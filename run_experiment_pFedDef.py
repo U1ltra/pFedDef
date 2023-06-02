@@ -33,9 +33,9 @@ import numba
 if __name__ == "__main__":
     
     ## INPUT GROUP 1 - experiment macro parameters ##
-    exp_names = ['pfeddef']
+    exp_names = ['FedAvg_adv']
     G_val = [0.4]
-    n_learners = 3
+    n_learners = 1
     ## END INPUT GROUP 1 ##
 
     exp_root_path = input("exp_root_path>>>>")
@@ -102,7 +102,7 @@ if __name__ == "__main__":
                            step_size = 0.05, step_norm = "inf", eps = eps, eps_norm = "inf")
 
         # Obtain the central controller decision making variables (static)
-        num_h = args_.n_learners = 3
+        num_h = args_.n_learners = 1
         Du = np.zeros(len(clients))
 
         for i in range(len(clients)):
