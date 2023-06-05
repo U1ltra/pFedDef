@@ -33,7 +33,7 @@ import numba
 if __name__ == "__main__":
     
     ## INPUT GROUP 1 - experiment macro parameters ##
-    exp_names = ['FedAvg_adv_baseline']
+    exp_names = ['FedAvg_adv_external']
     G_val = [0.4]
     n_learners = 1
     ## END INPUT GROUP 1 ##
@@ -68,15 +68,12 @@ if __name__ == "__main__":
         args_.communication_probability = 0.1
         args_.q = 1
         args_.locally_tune_clients = False
-        args_.seed = 1234
+        args_.seed = 4321
         args_.verbose = 1
         args_.logs_root = f'{exp_root_path}/{exp_names[itt]}/logs'
         args_.save_path = f'{exp_root_path}/{exp_names[itt]}/weights'      # weight save path
         args_.validation = False
         args_.aggregation_op = None
-
-        for i in [150, 200, 250]:
-            path_log.write(f'{exp_root_path}/{exp_names[itt]}/gt{i}\n')
 
         Q = 10                            # ADV dataset update freq
         G = G_val[itt]                    # Adversarial proportion aimed globally
@@ -148,19 +145,15 @@ if __name__ == "__main__":
                 pbar.update(1)
                 current_round = aggregator.c_round
             
-            if (current_round) % 50 == 0 and (current_round) >= 150:
-                print(f"saving at round {current_round+1}")
-                if "save_path" in args_:
-                    save_root = os.path.join(args_.save_path, f"gt{current_round}")
+            if (current_round + 1) % 5 == 0:
+                save_root = os.path.join(
+                    args_.save_path, f"chkpts_{current_round}/weights"
+                )
+                os.makedirs(save_root, exist_ok=True)
+                aggregator.save_state(save_root)
 
-                    os.makedirs(save_root, exist_ok=True)
-                    aggregator.save_state(save_root)
-
-        if "save_path" in args_:
-            save_root = os.path.join(args_.save_path, f"gt{current_round}_final")
-
-            os.makedirs(save_root, exist_ok=True)
-            aggregator.save_state(save_root)
+                path_log.write(f"{args_.save_path}/chkpts_{current_round}\n")
+                path_log.flush()
             
         save_arg_log(f_path = args_.logs_root, args = args_)
         
