@@ -429,8 +429,9 @@ class Adv_MixtureClient(MixtureClient):
         
         self.adv_nn.pgd_sub(self.atk_params, x_data.cuda(), y_data.cuda())
         x_adv = self.adv_nn.x_adv
+        y_adv = self.adv_nn.y_adv
         
-        return sample, x_adv
+        return sample, x_adv, y_adv
     
     def assign_advdataset(self):
         # convert dataset to normed and replace specific datapoints
@@ -439,17 +440,19 @@ class Adv_MixtureClient(MixtureClient):
         self.train_iterator = deepcopy(self.og_dataloader)
         
         # adversarial datasets loop, adjust normed and push 
-        sample_id, x_adv = self.generate_adversarial_data()
+        sample_id, x_adv, y_adv = self.generate_adversarial_data()
         
         for i in range(sample_id.shape[0]):
             idx = sample_id[i]
             x_val_normed = x_adv[i]
+            y_val = y_adv[i]
             try:
                 x_val_unnorm = unnormalize_cifar10(x_val_normed)
             except:
                 x_val_unnorm = unnormalize_femnist(x_val_normed)
         
             self.train_iterator.dataset.data[idx] = x_val_unnorm
+            self.train_iterator.dataset.targets[idx] = y_val
         
         self.train_loader = iter(self.train_iterator)
         
@@ -771,8 +774,9 @@ class Adv_Client(Client):
         
         self.adv_nn.pgd_sub(self.atk_params, x_data.cuda(), y_data.cuda())
         x_adv = self.adv_nn.x_adv
+        y_adv = self.adv_nn.y_adv
         
-        return sample, x_adv
+        return sample, x_adv, y_adv
     
     def assign_advdataset(self):
         # convert dataset to normed and replace specific datapoints
@@ -781,17 +785,19 @@ class Adv_Client(Client):
         self.train_iterator = deepcopy(self.og_dataloader)
         
         # adversarial datasets loop, adjust normed and push 
-        sample_id, x_adv = self.generate_adversarial_data()
+        sample_id, x_adv, y_adv = self.generate_adversarial_data()
         
         for i in range(sample_id.shape[0]):
             idx = sample_id[i]
             x_val_normed = x_adv[i]
+            y_val = y_adv[i]
             try:
                 x_val_unnorm = unnormalize_cifar10(x_val_normed)
             except:
                 x_val_unnorm = unnormalize_femnist(x_val_normed)
         
             self.train_iterator.dataset.data[idx] = x_val_unnorm
+            self.train_iterator.dataset.targets[idx] = y_val
         
         self.train_loader = iter(self.train_iterator)
         

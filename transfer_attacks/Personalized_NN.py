@@ -160,6 +160,7 @@ class Adv_NN(Personalized_NN):
         self.x_orig = None
         self.x_adv = None
         self.y_orig = None
+        self.y_adv = None
         
         self.softmax_orig = None
         self.output_orig = None
@@ -288,7 +289,8 @@ class Adv_NN(Personalized_NN):
             
             self.x_adv = torch.clamp(self.x_adv, x_val_min, x_val_max)
             self.x_adv = Variable(self.x_adv.data, requires_grad=True)
-        
+
+        self.y_adv = torch.argmax(self.forward(self.x_adv), dim = 1)        
         return
         
     def pgd(self, atk_params, print_info=False, mode='test'):

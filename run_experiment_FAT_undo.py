@@ -5,7 +5,7 @@ This script runs a pFedDef training on the FedEM model.
 from utils.utils import *
 from utils.constants import *
 from utils.args import *
-from run_experiment import * 
+from run_experiment import *
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -27,80 +27,96 @@ from transfer_attacks.Transferer import *
 from transfer_attacks.Args import *
 from transfer_attacks.TA_utils import *
 
-import numba 
+import numba
 
 
 if __name__ == "__main__":
-    
     ## INPUT GROUP 1 - experiment macro parameters ##
-    exp_names = ['FedAvg_adv_baseline']
+    exp_names = ["FedAvg_adv_unrobust"]
     G_val = [0.4]
     n_learners = 1
     ## END INPUT GROUP 1 ##
 
     exp_root_path = input("exp_root_path>>>>")
-    path_log = open(f"{exp_root_path}/path_log", mode = "w")
-    path_log.write(f'FedAvg\n')
-    
+    path_log = open(f"{exp_root_path}/path_log", mode="w")
+    path_log.write(f"FedAvg\n")
+
     for itt in range(len(exp_names)):
-        
         print("running trial:", itt)
-        
+
         ## INPUT GROUP 2 - experiment macro parameters ##
         args_ = Args()
-        args_.experiment = "cifar10"      # dataset name
-        args_.method = 'FedAvg_adv'       # Method of training
+        args_.experiment = "cifar10"  # dataset name
+        args_.method = "FedAvg_adv"  # Method of training
         args_.decentralized = False
         args_.sampling_rate = 1.0
         args_.input_dimension = None
         args_.output_dimension = None
-        args_.n_learners= n_learners      # Number of hypotheses assumed in system
-        args_.n_rounds = 250              # Number of rounds training takes place
+        args_.n_learners = n_learners  # Number of hypotheses assumed in system
+        args_.n_rounds = 100  # Number of rounds training takes place
         args_.bz = 128
         args_.local_steps = 1
         args_.lr_lambda = 0
-        args_.lr = 0.03                   # Learning rate
-        args_.lr_scheduler = 'multi_step'
+        args_.lr = 0.03  # Learning rate
+        args_.lr_scheduler = "multi_step"
         args_.log_freq = 20
-        args_.device = 'cuda'
-        args_.optimizer = 'sgd'
+        args_.device = "cuda"
+        args_.optimizer = "sgd"
         args_.mu = 0
         args_.communication_probability = 0.1
         args_.q = 1
         args_.locally_tune_clients = False
         args_.seed = 1234
         args_.verbose = 1
-        args_.logs_root = f'{exp_root_path}/{exp_names[itt]}/logs'
-        args_.save_path = f'{exp_root_path}/{exp_names[itt]}/weights'      # weight save path
+        args_.logs_root = f"{exp_root_path}/{exp_names[itt]}/logs"
+        args_.save_path = (
+            f"{exp_root_path}/{exp_names[itt]}/weights"  # weight save path
+        )
+        args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/FAT_progressive/FedAvg_adv_progressive/weights/gt69'
         args_.validation = False
         args_.aggregation_op = None
 
-        for i in [150, 200, 250]:
-            path_log.write(f'{exp_root_path}/{exp_names[itt]}/gt{i}\n')
+        for i in range(1, args_.n_rounds + 1, 2):
+            path_log.write(f"{exp_root_path}/{exp_names[itt]}/weights/gt{i}\n")
 
-        Q = 10                            # ADV dataset update freq
-        G = G_val[itt]                    # Adversarial proportion aimed globally
-        num_clients = 40                  # Number of clients to train with
-        S = 0.05                          # Threshold param for robustness propagation
-        step_size = 0.01                  # Attack step size
-        K = 10                            # Number of steps when generating adv examples
-        eps = 0.1                         # Projection magnitude 
+        Q = 1  # ADV dataset update freq
+        G = G_val[itt]  # Adversarial proportion aimed globally
+        num_clients = 40  # Number of clients to train with
+        S = 0.05  # Threshold param for robustness propagation
+        step_size = 0.01  # Attack step size
+        K = 10  # Number of steps when generating adv examples
+        eps = 0.1  # Projection magnitude
         ## END INPUT GROUP 2 ##
-        
 
         # Randomized Parameters
         Ru = np.ones(num_clients)
-        
+
         # Generate the dummy values here
         aggregator, clients = dummy_aggregator(args_, num_clients)
+        if "load_path" in args_:
+            print(f"Loading model from {args_.load_path}")
+            load_root = os.path.join(args_.load_path)
+            aggregator.load_state(load_root)
+
+            args_.n_rounds = 100
+            print("Update clients before training")
+            aggregator.update_clients()
 
         # Set attack parameters
         x_min = torch.min(clients[0].adv_nn.dataloader.x_data)
         x_max = torch.max(clients[0].adv_nn.dataloader.x_data)
         atk_params = PGD_Params()
-        atk_params.set_params(batch_size=1, iteration = K,
-                           target = -1, x_val_min = x_min, x_val_max = x_max,
-                           step_size = 0.05, step_norm = "inf", eps = eps, eps_norm = "inf")
+        atk_params.set_params(
+            batch_size=1,
+            iteration=K,
+            target=-1,
+            x_val_min=x_min,
+            x_val_max=x_max,
+            step_size=0.05,
+            step_norm="inf",
+            eps=eps,
+            eps_norm="inf",
+        )
 
         # Obtain the central controller decision making variables (static)
         num_h = args_.n_learners = 1
@@ -109,19 +125,20 @@ if __name__ == "__main__":
         for i in range(len(clients)):
             num_data = clients[i].train_iterator.dataset.targets.shape[0]
             Du[i] = num_data
-        D = np.sum(Du) # Total number of data points
+        D = np.sum(Du)  # Total number of data points
 
+        stop_clients = [i for i in range(0, 9)] + [i for i in range(10, num_clients)]
+        aggregator.change_all_clients_status(stop_clients, False)
 
         # Train the model
         print("Training..")
         pbar = tqdm(total=args_.n_rounds)
         current_round = 0
         while current_round < args_.n_rounds:
-
             # If statement catching every Q rounds -- update dataset
-            if  current_round != 0 and current_round%Q == 0: # 
+            if current_round % Q == 0:  #
                 # Obtaining hypothesis information
-                Whu = np.zeros([num_clients,num_h]) # Hypothesis weight for each user
+                Whu = np.zeros([num_clients, num_h])  # Hypothesis weight for each user
                 for i in range(len(clients)):
                     # print("client", i)
                     temp_client = aggregator.clients[i]
@@ -130,7 +147,7 @@ if __name__ == "__main__":
 
                 row_sums = Whu.sum(axis=1)
                 Whu = Whu / row_sums[:, np.newaxis]
-                Wh = np.sum(Whu,axis=0)/num_clients
+                Wh = np.sum(Whu, axis=0) / num_clients
 
                 # Solve for adversarial ratio at every client
                 Fu = solve_proportions(G, num_clients, num_h, Du, Whu, S, Ru, step_size)
@@ -138,6 +155,8 @@ if __name__ == "__main__":
                 # Assign proportion and attack params
                 # Assign proportion and compute new dataset
                 for i in range(len(clients)):
+                    if i in stop_clients:
+                        continue
                     aggregator.clients[i].set_adv_params(Fu[i], atk_params)
                     aggregator.clients[i].update_advnn()
                     aggregator.clients[i].assign_advdataset()
@@ -147,25 +166,28 @@ if __name__ == "__main__":
             if aggregator.c_round != current_round:
                 pbar.update(1)
                 current_round = aggregator.c_round
-            
-            if (current_round) % 50 == 0 and (current_round) >= 150:
+
+            if (current_round + 1) % 2 == 0:
                 print(f"saving at round {current_round+1}")
                 if "save_path" in args_:
-                    save_root = os.path.join(args_.save_path, f"gt{current_round}")
+                    save_root = os.path.join(
+                        args_.save_path, f"gt{current_round}/weights"
+                    )
 
                     os.makedirs(save_root, exist_ok=True)
                     aggregator.save_state(save_root)
 
         if "save_path" in args_:
-            save_root = os.path.join(args_.save_path, f"gt{current_round}_final")
+            save_root = os.path.join(
+                args_.save_path, f"gt{current_round}_final/weights"
+            )
 
             os.makedirs(save_root, exist_ok=True)
             aggregator.save_state(save_root)
-            
-        save_arg_log(f_path = args_.logs_root, args = args_)
-        
+
+        save_arg_log(f_path=args_.logs_root, args=args_)
+
         del args_, aggregator, clients
         torch.cuda.empty_cache()
-            
+
     path_log.close()
-    
