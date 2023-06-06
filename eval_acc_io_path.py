@@ -44,40 +44,54 @@ if setting == "FedEM":
 else:
     nL = 1
 
-# Manually set argument parameters
-args_ = Args()
-args_.experiment = "cifar10"
-args_.method = setting
-args_.decentralized = False
-args_.sampling_rate = 1.0
-args_.input_dimension = None
-args_.output_dimension = None
-args_.n_learners = nL
-args_.n_rounds = 10
-args_.bz = 128
-args_.local_steps = 1
-args_.lr_lambda = 0
-args_.lr = 0.03
-args_.lr_scheduler = "multi_step"
-args_.log_freq = 10
-args_.device = "cuda"
-args_.optimizer = "sgd"
-args_.mu = 0
-args_.communication_probability = 0.1
-args_.q = 1
-args_.locally_tune_clients = False
-args_.seed = 1234
-args_.verbose = 1
-args_.save_path = "weights/cifar/dummy/"
-args_.validation = False
-args_.aggregation_op = "trimmed_mean"
 
-# Generate the dummy values here
-aggregator, clients = dummy_aggregator(args_, num_user=40)
+def init_FL(num_user=40):
+    # Manually set argument parameters
+    args_ = Args()
+    args_.experiment = "cifar10"
+    args_.method = setting
+    args_.decentralized = False
+    args_.sampling_rate = 1.0
+    args_.input_dimension = None
+    args_.output_dimension = None
+    args_.n_learners = nL
+    args_.n_rounds = 10
+    args_.bz = 128
+    args_.local_steps = 1
+    args_.lr_lambda = 0
+    args_.lr = 0.03
+    args_.lr_scheduler = "multi_step"
+    args_.log_freq = 10
+    args_.device = "cuda"
+    args_.optimizer = "sgd"
+    args_.mu = 0
+    args_.communication_probability = 0.1
+    args_.q = 1
+    args_.locally_tune_clients = False
+    args_.seed = 1234
+    args_.verbose = 1
+    args_.save_path = "weights/cifar/dummy/"
+    args_.validation = False
+    args_.aggregation_op = None
+
+    # Generate the dummy values here
+    aggregator, clients = dummy_aggregator(args_, num_user=num_user)
+    return aggregator, clients, args_
+
+
+aggregator, clients, args_ = init_FL()
 
 for f_path in paths[1:]:
     print(f"Working on {f_path}")
     sys.stdout.flush()
+    if "client number" in f_path:
+        client_num = 40
+        
+        # use this if only part of the clients will participate in the evaluation
+        # client_num = int(f_path.split("client number")[1])    
+        # aggregator, clients, args_ = init_FL(num_user=client_num)
+        continue
+
     # Compiling Dataset from Clients
     # Combine Validation Data across all clients as test
     data_x = []
@@ -98,7 +112,7 @@ for f_path in paths[1:]:
     dataloader = Custom_Dataloader(data_x, data_y)
 
     # Import Model Weights
-    num_models = 40
+    num_models = client_num
 
     np.set_printoptions(formatter={"float": lambda x: "{0:0.2f}".format(x)})
 
@@ -314,5 +328,5 @@ for f_path in paths[1:]:
             np.save(f"{store_eval_path}/pair_acc.npy", orig_acc)
             np.save(f"{store_eval_path}/pair_adv_acc.npy", adv_acc)
         else:
-            np.save(f"{store_eval_path}/all_acc_zeroVar.npy", orig_acc)
-            np.save(f"{store_eval_path}/all_adv_acc_zeroVar.npy", adv_acc)
+            np.save(f"{store_eval_path}/all_acc_zeroVar_fullClients.npy", orig_acc)
+            np.save(f"{store_eval_path}/all_adv_acc_zeroVar_fullClients.npy", adv_acc)
