@@ -41,20 +41,24 @@ if __name__ == "__main__":
     print("The current time in New York is:", currentTimeInNewYork)
 
     ## INPUT GROUP 1 - experiment macro parameters ##
-    atk_nums = [1, 3, 5, 10, 15, 20, 25, 30]
+    atk_nums = [1, 5, 10, 20]
+    rep_chkp_path = [
+        f"/home/ubuntu/Documents/jiarui/experiments/extra_train_inject/extra_train/client_num{num}/weights/chkpts_1/weights"
+        for num in atk_nums
+    ]
     client_weights = np.load(
         "/home/ubuntu/Documents/jiarui/experiments/multi_atker/client_weights.npy"
     )
 
     # calculate the theoretical best scale for each attack number
-    best_scales = [int(1 / client_weights[0:atk_num].sum()) for atk_num in atk_nums]
+    best_scales = [1 / client_weights[0:atk_num].sum() for atk_num in atk_nums]
     params = []
     for idx, scale in enumerate(best_scales):
         if scale - 4 <= 0:
-            for i in range(1, scale+1):
+            for i in range(1, int(scale) + 1):
                 params.append((atk_nums[idx], i))
-            params.append((atk_nums[idx], scale+1))
-            params.append((atk_nums[idx], scale+2))
+            params.append((atk_nums[idx], scale + 1))
+            params.append((atk_nums[idx], scale + 2))
         else:
             for i in range(0, 10, 2):
                 params.append((atk_nums[idx], scale + i - 4))
@@ -97,13 +101,12 @@ if __name__ == "__main__":
         args_.save_path = (
             f"{exp_root_path}/{exp_names[itt]}/weights"  # weight save path
         )
-        # args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/{args_.method}/{args_.experiment}/replace/replace_fail_1/weights'
-        # args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/fedavg/gt_epoch200/weights'
         args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/FedAvg_adv/gt_1leaner_adv/weights/gt200"
-        # args_.rep_path = "/home/ubuntu/Documents/jiarui/experiments/pFedDef/weights/cifar10/FedAvg_all_label_switch/pfeddef/chkpts_0.pt"
-        args_.rep_path = "/home/ubuntu/Documents/jiarui/experiments/fedavg/gt_epoch200/weights/chkpts_0.pt"
+        args_.rep_path = f"{rep_chkp_path[itt]}/chkpts_0.pt"
         args_.validation = False
-        args_.aggregation_op = "trimmed_mean"
+        args_.aggregation_op = None
+
+        print(f"\nLoading replace model from {args_.rep_path}\n")
 
         if itt == 0:
             path_log.write(f"{args_.method}\n")
