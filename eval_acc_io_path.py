@@ -80,6 +80,7 @@ def init_FL(num_user=40):
 
 
 aggregator, clients, args_ = init_FL()
+client_num = 40
 
 for f_path in paths[1:]:
     print(f"Working on {f_path}")

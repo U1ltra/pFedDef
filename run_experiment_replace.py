@@ -42,10 +42,7 @@ if __name__ == "__main__":
 
     ## INPUT GROUP 1 - experiment macro parameters ##
     atk_nums = [1, 5, 10, 20]
-    rep_chkp_path = [
-        f"/home/ubuntu/Documents/jiarui/experiments/extra_train_inject/extra_train/client_num{num}/weights/chkpts_1/weights"
-        for num in atk_nums
-    ]
+    best_chkpts = [49, 25, 45, 49]
     client_weights = np.load(
         "/home/ubuntu/Documents/jiarui/experiments/multi_atker/client_weights.npy"
     )
@@ -55,15 +52,17 @@ if __name__ == "__main__":
     params = []
     for idx, scale in enumerate(best_scales):
         if scale - 4 <= 0:
-            for i in range(1, int(scale) + 1):
-                params.append((atk_nums[idx], i))
-            params.append((atk_nums[idx], scale + 1))
-            params.append((atk_nums[idx], scale + 2))
+            for i in range(1, int(scale+1)):
+                params.append((atk_nums[idx], i, best_chkpts[idx]))
+            params.append((atk_nums[idx], scale, best_chkpts[idx]))
+            params.append((atk_nums[idx], scale + 1, best_chkpts[idx]))
+            params.append((atk_nums[idx], scale + 2, best_chkpts[idx]))
         else:
             for i in range(0, 10, 2):
-                params.append((atk_nums[idx], scale + i - 4))
+                params.append((atk_nums[idx], scale + i - 4, best_chkpts[idx]))
 
-    exp_names = [f"atk_{atk_num}_scale{scale}" for atk_num, scale in params]
+    exp_names = [f"atk_{atk_num}_scale{scale}" for (atk_num, scale, best_chkpt) in params]
+
     exp_root_path = input("exp_root_path>>>>")
     path_log = open(f"{exp_root_path}/path_log", mode="w")
 
@@ -102,7 +101,7 @@ if __name__ == "__main__":
             f"{exp_root_path}/{exp_names[itt]}/weights"  # weight save path
         )
         args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/FedAvg_adv/gt_1leaner_adv/weights/gt200"
-        args_.rep_path = f"{rep_chkp_path[itt]}/chkpts_0.pt"
+        args_.rep_path = f"/home/ubuntu/Documents/jiarui/experiments/extra_train_inject/extra_train/client_num{params[itt][0]}/weights/chkpts_{params[itt][2]}/weights/chkpts_0.pt"
         args_.validation = False
         args_.aggregation_op = None
 
