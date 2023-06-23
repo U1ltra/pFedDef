@@ -40,9 +40,8 @@ if __name__ == "__main__":
     print("The current time in New York is:", currentTimeInNewYork)
 
     ## INPUT GROUP 1 - experiment macro parameters ##
-    client_nums = [1, 5, 10, 20]
 
-    exp_names = ["client_num{}".format(client_num) for client_num in client_nums]
+    exp_names = ["extra_benign"]
     exp_root_path = input("exp_root_path>>>>")
     path_log = open(f"{exp_root_path}/path_log", mode="w")
 
@@ -80,16 +79,16 @@ if __name__ == "__main__":
         args_.save_path = (
             f"{exp_root_path}/{exp_names[itt]}/weights"  # weight save path
         )
-        args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/FedAvg_adv/gt_1leaner_adv/weights/gt200"
+        # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/FedAvg_adv/gt_1leaner_adv/weights/gt200"
+        args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/extra_train_inject/5clients_xhat_yhat_unhard/FedAvg_adv_unharden_portion_1.0/weights/gt49/weights"
         args_.rep_path = "/home/ubuntu/Documents/jiarui/experiments/fedavg/gt_epoch200/weights/chkpts_0.pt"
         args_.validation = False
         args_.aggregation_op = None
 
         if itt == 0:
             path_log.write(f"{args_.method}\n")
-        path_log.write(f"client number {client_nums[itt]}\n")
 
-        num_clients = client_nums[itt]  # Number of clients to train with
+        num_clients = 5  # Number of clients to train with
         num_classes = 10  # Number of classes in the data set we are training with
         ## END INPUT GROUP 2 ##
 
