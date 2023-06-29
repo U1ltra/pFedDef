@@ -32,14 +32,17 @@ import numba
 
 if __name__ == "__main__":
     ## INPUT GROUP 1 - experiment macro parameters ##
-    exp_names = ["FedAvg_adv_unrobust"]
-    G_val = [0.4]
     n_learners = 1
     ## END INPUT GROUP 1 ##
 
     exp_root_path = input("exp_root_path>>>>")
     path_log = open(f"{exp_root_path}/path_log", mode="w")
     path_log.write(f"FedAvg\n")
+
+    unharden_portion = [0.0, 0.3, 0.6, 0.9, 1.0]
+    G_val = [0.4]*len(unharden_portion)
+
+    exp_names = [f"FedAvg_adv_unharden_portion_{i}" for i in unharden_portion]
 
     for itt in range(len(exp_names)):
         print("running trial:", itt)
@@ -53,7 +56,7 @@ if __name__ == "__main__":
         args_.input_dimension = None
         args_.output_dimension = None
         args_.n_learners = n_learners  # Number of hypotheses assumed in system
-        args_.n_rounds = 100  # Number of rounds training takes place
+        args_.n_rounds = 50  # Number of rounds training takes place
         args_.bz = 128
         args_.local_steps = 1
         args_.lr_lambda = 0
@@ -72,16 +75,17 @@ if __name__ == "__main__":
         args_.save_path = (
             f"{exp_root_path}/{exp_names[itt]}/weights"  # weight save path
         )
-        args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/FAT_progressive/FedAvg_adv_progressive/weights/gt69'
+        args_.load_path = f'/home/ubuntu/Documents/jiarui/experiments/FedAvg_adv/gt_1leaner_adv/weights/gt200'
         args_.validation = False
         args_.aggregation_op = None
+        args_.unharden_portion = unharden_portion[itt]
 
-        for i in range(1, args_.n_rounds + 1, 2):
+        for i in range(0, 51, 2):
             path_log.write(f"{exp_root_path}/{exp_names[itt]}/weights/gt{i}\n")
 
         Q = 1  # ADV dataset update freq
         G = G_val[itt]  # Adversarial proportion aimed globally
-        num_clients = 40  # Number of clients to train with
+        num_clients = 5  # Number of clients to train with
         S = 0.05  # Threshold param for robustness propagation
         step_size = 0.01  # Attack step size
         K = 10  # Number of steps when generating adv examples
@@ -98,7 +102,7 @@ if __name__ == "__main__":
             load_root = os.path.join(args_.load_path)
             aggregator.load_state(load_root)
 
-            args_.n_rounds = 100
+            args_.n_rounds = 50
             print("Update clients before training")
             aggregator.update_clients()
 
@@ -127,13 +131,22 @@ if __name__ == "__main__":
             Du[i] = num_data
         D = np.sum(Du)  # Total number of data points
 
-        stop_clients = [i for i in range(0, 9)] + [i for i in range(10, num_clients)]
-        aggregator.change_all_clients_status(stop_clients, False)
+        for i in range(5):
+            clients[i].set_unhard(True, args_.unharden_portion)
 
         # Train the model
         print("Training..")
         pbar = tqdm(total=args_.n_rounds)
         current_round = 0
+
+        if "save_path" in args_:
+            save_root = os.path.join(
+                args_.save_path, f"gt0/weights"
+            )
+
+            os.makedirs(save_root, exist_ok=True)
+            aggregator.save_state(save_root)
+
         while current_round < args_.n_rounds:
             # If statement catching every Q rounds -- update dataset
             if current_round % Q == 0:  #
@@ -155,8 +168,6 @@ if __name__ == "__main__":
                 # Assign proportion and attack params
                 # Assign proportion and compute new dataset
                 for i in range(len(clients)):
-                    if i in stop_clients:
-                        continue
                     aggregator.clients[i].set_adv_params(Fu[i], atk_params)
                     aggregator.clients[i].update_advnn()
                     aggregator.clients[i].assign_advdataset()
@@ -168,22 +179,13 @@ if __name__ == "__main__":
                 current_round = aggregator.c_round
 
             if (current_round + 1) % 2 == 0:
-                print(f"saving at round {current_round+1}")
                 if "save_path" in args_:
                     save_root = os.path.join(
-                        args_.save_path, f"gt{current_round}/weights"
+                        args_.save_path, f"gt{current_round+1}/weights"
                     )
 
                     os.makedirs(save_root, exist_ok=True)
                     aggregator.save_state(save_root)
-
-        if "save_path" in args_:
-            save_root = os.path.join(
-                args_.save_path, f"gt{current_round}_final/weights"
-            )
-
-            os.makedirs(save_root, exist_ok=True)
-            aggregator.save_state(save_root)
 
         save_arg_log(f_path=args_.logs_root, args=args_)
 

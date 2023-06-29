@@ -708,6 +708,13 @@ class Adv_Client(Client):
         self.altered_dataloader = self.gen_customdataloader(self.og_dataloader)
         self.adv_nn = Adv_NN(combined_model, self.altered_dataloader)
         self.dataset_name = dataset_name
+
+        self.unhardened_portion = None
+        self.unhard = False
+
+    def set_unhard(self, unhard = False, unharden_portion = None):
+        self.unhard = unhard
+        self.unhardened_portion = unharden_portion
     
     def set_adv_params(self, adv_proportion = 0, atk_params = None):
         self.adv_proportion = adv_proportion
@@ -790,14 +797,16 @@ class Adv_Client(Client):
         for i in range(sample_id.shape[0]):
             idx = sample_id[i]
             x_val_normed = x_adv[i]
-            y_val = y_adv[i]
             try:
                 x_val_unnorm = unnormalize_cifar10(x_val_normed)
             except:
                 x_val_unnorm = unnormalize_femnist(x_val_normed)
         
             self.train_iterator.dataset.data[idx] = x_val_unnorm
-            self.train_iterator.dataset.targets[idx] = y_val
+
+            if self.unhardened_portion is not None and np.random.rand() < self.unhardened_portion:
+                y_val = y_adv[i]
+                self.train_iterator.dataset.targets[idx] = y_val
         
         self.train_loader = iter(self.train_iterator)
         
