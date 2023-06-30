@@ -552,6 +552,18 @@ def get_aggregator(
             verbose=verbose,
             seed=seed
         )
+    elif aggregator_type == "unharden":
+        return UnhardenAggregator(
+            clients=clients,
+            global_learners_ensemble=global_learners_ensemble,
+            log_freq=log_freq,
+            global_train_logger=global_train_logger,
+            global_test_logger=global_test_logger,
+            test_clients=test_clients,
+            sampling_rate=sampling_rate,
+            verbose=verbose,
+            seed=seed
+        )
     else:
         raise NotImplementedError("{aggregator_type} is not a possible aggregator type."
                                   " Available are: `no_communication`, `centralized`,"

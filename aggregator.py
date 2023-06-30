@@ -229,6 +229,7 @@ class Aggregator(ABC):
             torch.save(learner.model.state_dict(), save_path)
 
         learners_weights = np.zeros((self.n_clients, self.n_learners))
+        # learners_weights = np.ones((40, self.n_learners))
         test_learners_weights = np.zeros((self.n_test_clients, self.n_learners))
 
         for mode, weights, clients in [
@@ -633,6 +634,184 @@ class CentralizedAggregator(Aggregator):
             print(
                 f"client {client_idx} with sample num {client.n_train_samples} stop learning = {status}"
             )
+
+
+class UnhardenAggregator(CentralizedAggregator):
+    def __init__(
+        self,
+        clients,
+        global_learners_ensemble,
+        log_freq,
+        global_train_logger,
+        global_test_logger,
+        sampling_rate=1,
+        sample_with_replacement=False,
+        test_clients=None,
+        verbose=0,
+        seed=None,
+        aggregation_op=None,
+        *args,
+        **kwargs,
+    ):
+        super().__init__(
+            clients,
+            global_learners_ensemble,
+            log_freq,
+            global_train_logger,
+            global_test_logger,
+            sampling_rate,
+            sample_with_replacement,
+            test_clients,
+            verbose,
+            seed,
+            aggregation_op,
+            *args,
+            **kwargs,
+        )
+
+    def set_unharden_portion(self, portion):
+        self.unharden_portion = portion
+        for client in self.clients:
+            client.set_unhard(True, self.unharden_portion)
+
+    def set_atk_params(self, atk_params):
+        self.Q = atk_params["Q"]
+        self.G = atk_params["G"]
+        self.Du = atk_params["Du"]
+        self.S = atk_params["S"]
+        self.Ru = atk_params["Ru"]
+        self.step_size = atk_params["step_size"]
+        self.atk_params = atk_params["atk_params"]
+
+    def mix(self):
+        self.gen_unharden_samples()
+        self.sample_clients()
+
+        for client in self.clients:
+            client.step()
+
+        for learner_id, learner in enumerate(self.global_learners_ensemble):
+            learners = [client.learners_ensemble[learner_id] for client in self.clients]
+            if self.aggregation_op is None:
+                average_learners(learners, learner, weights=self.clients_weights)
+            elif self.aggregation_op == "trimmed_mean":
+                byzantine_robust_aggregate_tm(learners, learner, beta=0.05)
+
+        self.update_clients()
+        self.c_round += 1
+
+        if self.c_round % self.log_freq == 0:
+            self.write_logs()
+
+    def update_clients(self):
+        for client in self.clients:
+            for learner_id, learner in enumerate(client.learners_ensemble):
+                copy_model(
+                    learner.model, self.global_learners_ensemble[learner_id].model
+                )
+
+                if callable(getattr(learner.optimizer, "set_initial_params", None)):
+                    learner.optimizer.set_initial_params(
+                        self.global_learners_ensemble[learner_id].model.parameters()
+                    )
+
+    def gen_unharden_samples(self):
+        # If statement catching every Q rounds -- update dataset
+        if self.c_round % self.Q == 0:  #
+            # Obtaining hypothesis information
+            Whu = np.zeros(
+                [self.n_clients, self.n_learners]
+            )  # Hypothesis weight for each user
+
+            for i in range(self.n_clients):
+                temp_client = self.clients[i]
+                hyp_weights = temp_client.learners_ensemble.learners_weights
+                Whu[i] = hyp_weights
+
+            row_sums = Whu.sum(axis=1)
+            Whu = Whu / row_sums[:, np.newaxis]
+            Wh = np.sum(Whu, axis=0) / self.n_clients
+
+            # Solve for adversarial ratio at every client
+            Fu = self.solve_proportions(
+                self.G,
+                self.n_clients,
+                self.n_learners,
+                self.Du,
+                Whu,
+                self.S,
+                self.Ru,
+                self.step_size,
+            )
+
+            # Assign proportion and attack params
+            # Assign proportion and compute new dataset
+            for i in range(self.n_clients):
+                self.clients[i].set_adv_params(Fu[i], self.atk_params)
+                self.clients[i].update_advnn()
+                self.clients[i].assign_advdataset()
+
+    def best_replace_scale(self):
+        client_weights = np.load(
+            "/home/ubuntu/Documents/jiarui/experiments/multi_atker/client_weights.npy"
+        )
+        best_scale = 1 / client_weights[0:self.n_clients].sum()
+        return best_scale
+    
+
+    def calc_prop_objective(self, G, num_h, Du, Whu, Fu):
+        # Calculate objective function value for attaining global adv data proportion
+        N = Whu.shape[0]
+        Wh = np.sum(Whu,axis=0)/N
+        obj = 0
+        D = np.sum(Du)
+        for n in range(num_h):    
+            obj += np.abs(np.sum(Fu * Du * Whu[:,n])- G * D * Wh[n]) * 1/D
+        return obj
+
+    def solve_proportions(self, G, N, num_h, Du, Whu, S, Ru, step_size):
+        """
+        Inputs:
+        - G - Desired proportion of adv data points
+        - N - Number of users in the system
+        - num_h - Number of mixtures/hypotheses (FedEM)
+        - Du - Number of data points at user U
+        - Whu - Weight of each hypothis at user U
+        - S - Threshold for objective function to fall below
+        - Ru - Resource limits at each user (proportion)
+        - step_size - For sweeping Fu
+        Output:
+        - Fu - proportion of adv data for each client
+        """
+        
+        # finalize information needed to solve problem
+        Wh = np.sum(Whu,axis=0)/N
+        D = np.sum(Du)
+
+        Fu = np.ones_like(Ru) * G
+
+        # Step 1. Initial filter out all users with less resource constraints
+        A = np.where(Fu>Ru)[0]
+        B = np.where(Fu<Ru)[0]
+        Fu[A] = Ru[A]
+
+        # Step 2. Select users at random and change proportion, check objective 
+        np.random.shuffle(B)
+        for i in B:
+            curr_obj = self.calc_prop_objective(G, num_h, Du, Whu, Fu)
+            while Fu[i] + step_size < Ru[i]:
+                Fu_temp = deepcopy(Fu)
+                Fu_temp[i] = Fu[i] + step_size
+                new_obj = self.calc_prop_objective(G, num_h, Du, Whu, Fu_temp)
+                if new_obj <= S:
+                    Fu = Fu_temp
+                    break
+                elif new_obj < curr_obj:
+                    Fu = Fu_temp
+                    curr_obj = new_obj
+                else: break
+                    
+        return Fu
 
 
 class PersonalizedAggregator(CentralizedAggregator):

@@ -18,6 +18,7 @@ from utils.args import *
 from torch.utils.tensorboard import SummaryWriter
 from run_experiment import *
 from models import *
+from transfer_attacks.Params import *
 
 
 class One_Hot(nn.Module):
@@ -169,6 +170,35 @@ def dummy_aggregator(args_, num_user=80):
     return aggregator, clients
 
 # ADV functions
+
+def get_atk_params(args_, clients, num_clients, K, eps):
+    Ru = np.ones(num_clients)
+    
+    # Set attack parameters
+    x_min = torch.min(clients[0].adv_nn.dataloader.x_data)
+    x_max = torch.max(clients[0].adv_nn.dataloader.x_data)
+    atk_params = PGD_Params()
+    atk_params.set_params(
+        batch_size=1,
+        iteration=K,
+        target=-1,
+        x_val_min=x_min,
+        x_val_max=x_max,
+        step_size=0.05,
+        step_norm="inf",
+        eps=eps,
+        eps_norm="inf",
+    )
+
+    # Obtain the central controller decision making variables (static)
+    num_h = args_.n_learners
+    Du = np.zeros(len(clients))
+
+    for i in range(len(clients)):
+        num_data = clients[i].train_iterator.dataset.targets.shape[0]
+        Du[i] = num_data
+
+    return Ru, atk_params, num_h, Du
 
 # Solve for Fu for all users
 def solve_proportions(G, N, num_h, Du, Whu, S, Ru, step_size):
