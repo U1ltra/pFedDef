@@ -35,8 +35,10 @@ if __name__ == "__main__":
     path_log = open(f"{exp_root_path}/path_log", mode="w")
     path_log.write(f"FedAvg\n")
 
-    exp_names = [f"unharden_rep_pipeline"]
+    exp_names = [f"unharden_rep_pipeline_synthetic"]
     G_val = [0.4] * len(exp_names)
+
+    torch.manual_seed(42)
 
     for itt in range(len(exp_names)):
         print("running trial:", itt)
@@ -51,7 +53,7 @@ if __name__ == "__main__":
         args_.input_dimension = None
         args_.output_dimension = None
         args_.n_learners = 1  # Number of hypotheses assumed in system
-        args_.n_rounds = 3  # Number of rounds training takes place
+        args_.n_rounds = 50  # Number of rounds training takes place
         args_.bz = 128
         args_.local_steps = 1
         args_.lr_lambda = 0
@@ -67,13 +69,11 @@ if __name__ == "__main__":
         args_.seed = 1234
         args_.verbose = 1
         args_.logs_root = f"{exp_root_path}/{exp_names[itt]}/logs"
-        args_.atk_start_save_path = (
-            f"{exp_root_path}/{exp_names[itt]}/atk_start/weights"
-        )
-        args_.unharden_save_path = f"{exp_root_path}/{exp_names[itt]}/unharden/weights"
-        args_.replace_save_path = f"{exp_root_path}/{exp_names[itt]}/replace/weights"
+        args_.save_path = f"{exp_root_path}/{exp_names[itt]}"
         args_.validation = False
         args_.aggregation_op = None
+        args_.save_interval = 10
+        # args_.synthetic_train_portion = None
 
         Q = 10  # ADV dataset update freq
         G = G_val[itt]  # Adversarial proportion aimed globally
@@ -91,9 +91,10 @@ if __name__ == "__main__":
         args_adv = copy.deepcopy(args_)
         args_adv.method = "unharden"
         args_adv.num_clients = 5
+        # args_adv.synthetic_train_portion = 1.0
         adv_aggregator, adv_clients = dummy_aggregator(args_adv, args_adv.num_clients)
 
-        args_adv.unharden_start_round = 1
+        args_adv.unharden_start_round = 0
         args_adv.atk_rounds = 1
 
         args_adv.adv_params = dict()
@@ -112,13 +113,50 @@ if __name__ == "__main__":
 
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/atk_start/weights\n")
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/unharden/weights\n")
+        path_log.write(f"{exp_root_path}/{exp_names[itt]}/before_replace/weights\n")
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/replace/weights\n")
+        for i in range(0, args_.n_rounds, args_.save_interval):
+            path_log.write(f"{exp_root_path}/{exp_names[itt]}/FAT_train/weights/gt{i}\n")
+        for i in range(args_adv.unharden_start_round + 5, args_.n_rounds, args_.save_interval):
+            path_log.write(f"{exp_root_path}/{exp_names[itt]}/unharden_train/weights/gt{i}\n")
 
         # Train the model
         print("Training..")
         pbar = tqdm(total=args_.n_rounds)
         current_round = 0
         while current_round < args_.n_rounds:
+            # The conditions here happens before the round starts
+            if current_round == args_adv.unharden_start_round:
+                # save the chkpt for unharden
+                save_root = os.path.join(args_.save_path, "atk_start/weights")
+                os.makedirs(save_root, exist_ok=True)
+                aggregator.save_state(save_root)
+
+                # load the chkpt for unharden
+                print(f"Epoch {current_round} | Loading model from {save_root}")
+                adv_aggregator.load_state(save_root)
+                adv_aggregator.update_clients()
+
+            elif current_round == args_.n_rounds - 1:
+                save_root = os.path.join(args_.save_path, "before_replace/weights")
+                print(f"Epoch {current_round} | Saving model before replacement to {save_root}")
+                os.makedirs(save_root, exist_ok=True)
+                aggregator.save_state(save_root)
+
+                # save the unharden chkpt for replacement
+                save_root = os.path.join(args_.save_path, "unharden/weights")
+                print(f"Epoch {current_round} | Saving unhardened model to {save_root}")
+                os.makedirs(save_root, exist_ok=True)
+                adv_aggregator.save_state(save_root)
+
+                for client_idx in range(args_adv.num_clients):
+                    aggregator.clients[client_idx].turn_malicious(
+                        adv_aggregator.best_replace_scale(),
+                        "replacement",
+                        args_.n_rounds - args_adv.atk_rounds,
+                        os.path.join(save_root, f"chkpts_0.pt"),
+                    )
+
             # If statement catching every Q rounds -- update dataset
             if current_round != 0 and current_round % Q == 0:  #
                 # Obtaining hypothesis information
@@ -144,42 +182,27 @@ if __name__ == "__main__":
                     aggregator.clients[i].assign_advdataset()
 
             aggregator.mix()
+            if current_round % args_.save_interval == 0:
+                save_root = os.path.join(args_.save_path, f"FAT_train/weights/gt{current_round}")
+                os.makedirs(save_root, exist_ok=True)
+                aggregator.save_state(save_root)
+
+            if current_round > args_adv.unharden_start_round:
+                adv_aggregator.mix()
+                if current_round % args_.save_interval == 0:
+                    save_root = os.path.join(
+                        args_.save_path, f"unharden_train/weights/gt{current_round}"
+                    )
+                    os.makedirs(save_root, exist_ok=True)
+                    adv_aggregator.save_state(save_root)
 
             if aggregator.c_round != current_round:
                 pbar.update(1)
                 current_round = aggregator.c_round
 
-            if current_round == args_adv.unharden_start_round:
-                # save the chkpt for unharden
-                save_root = os.path.join(args_.atk_start_save_path)
-                os.makedirs(save_root, exist_ok=True)
-                aggregator.save_state(save_root)
-
-                # load the chkpt for unharden
-                print("Loading model from", save_root)
-                adv_aggregator.load_state(save_root)
-                adv_aggregator.update_clients()
-
-            elif current_round == args_.n_rounds - 1:
-                # save the unharden chkpt for replacement
-                save_root = os.path.join(args_.unharden_save_path)
-                print("Saving model to", save_root)
-                os.makedirs(save_root, exist_ok=True)
-                adv_aggregator.save_state(save_root)
-
-                for client_idx in range(args_adv.num_clients):
-                    aggregator.clients[client_idx].turn_malicious(
-                        adv_aggregator.best_replace_scale(),
-                        "replacement",
-                        args_.n_rounds - args_adv.atk_rounds,
-                        os.path.join(save_root, f"chkpts_0.pt"),
-                    )
-
-            if current_round > args_adv.unharden_start_round:
-                adv_aggregator.mix()
 
         if "save_path" in args_:
-            save_root = os.path.join(args_.replace_save_path)
+            save_root = os.path.join(args_.save_path, "replace/weights")
 
             os.makedirs(save_root, exist_ok=True)
             aggregator.save_state(save_root)
