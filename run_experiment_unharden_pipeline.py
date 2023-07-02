@@ -53,7 +53,7 @@ if __name__ == "__main__":
         args_.input_dimension = None
         args_.output_dimension = None
         args_.n_learners = 1  # Number of hypotheses assumed in system
-        args_.n_rounds = 50  # Number of rounds training takes place
+        args_.n_rounds = 30  # Number of rounds training takes place
         args_.bz = 128
         args_.local_steps = 1
         args_.lr_lambda = 0
@@ -70,10 +70,11 @@ if __name__ == "__main__":
         args_.verbose = 1
         args_.logs_root = f"{exp_root_path}/{exp_names[itt]}/logs"
         args_.save_path = f"{exp_root_path}/{exp_names[itt]}"
+        args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline/atk_start/weights"
         args_.validation = False
         args_.aggregation_op = None
-        args_.save_interval = 10
-        # args_.synthetic_train_portion = None
+        args_.save_interval = 5
+        args_.synthetic_train_portion = None
 
         Q = 10  # ADV dataset update freq
         G = G_val[itt]  # Adversarial proportion aimed globally
@@ -87,11 +88,16 @@ if __name__ == "__main__":
         # Generate the dummy values here
         aggregator, clients = dummy_aggregator(args_, num_clients)
         Ru, atk_params, num_h, Du = get_atk_params(args_, clients, num_clients, K, eps)
+        if "load_path" in args_:
+            print(f"Loading model from {args_.load_path}")
+            load_root = os.path.join(args_.load_path)
+            aggregator.load_state(load_root)
+            aggregator.update_clients()     # update the client's parameters immediatebly, since they should have an up-to-date consistent global model before training starts
 
         args_adv = copy.deepcopy(args_)
         args_adv.method = "unharden"
         args_adv.num_clients = 5
-        # args_adv.synthetic_train_portion = 1.0
+        args_adv.synthetic_train_portion = 1.0
         adv_aggregator, adv_clients = dummy_aggregator(args_adv, args_adv.num_clients)
 
         args_adv.unharden_start_round = 0
