@@ -685,7 +685,8 @@ class Adv_Client(Client):
             logger,
             local_steps,
             tune_locally=False,
-            dataset_name = 'cifar10'
+            dataset_name = 'cifar10',
+            synthetic=False,
     ):
         super(Adv_Client, self).__init__(
             learners_ensemble=learners_ensemble,
@@ -711,6 +712,8 @@ class Adv_Client(Client):
 
         self.unhardened_portion = None
         self.unhard = False
+
+        self.synthetic = synthetic
 
     def set_unhard(self, unhard = False, unharden_portion = None):
         self.unhard = unhard
@@ -768,6 +771,12 @@ class Adv_Client(Client):
         # reassign weights after trained
         self.adv_nn = Adv_NN(self.combine_learners_ensemble(), self.altered_dataloader)
         return
+
+    def generate_sythetic_data(self, x_data):     
+        self.adv_nn.synthetize(x_data.cuda())
+        y_syn = self.adv_nn.y_syn
+        
+        return y_syn
     
     def generate_adversarial_data(self):
         # Generate adversarial datapoints while recognizing idx of sampled without replacement
@@ -777,7 +786,11 @@ class Adv_Client(Client):
         sample_size = int(np.ceil(num_datapoints * self.adv_proportion))
         sample = np.random.choice(a=num_datapoints, size=sample_size)
         x_data = self.adv_nn.dataloader.x_data[sample]
-        y_data = self.adv_nn.dataloader.y_data[sample]
+
+        if self.synthetic:
+            y_data = self.generate_sythetic_data(x_data)
+        else:
+            y_data = self.adv_nn.dataloader.y_data[sample]
         
         self.adv_nn.pgd_sub(self.atk_params, x_data.cuda(), y_data.cuda())
         x_adv = self.adv_nn.x_adv

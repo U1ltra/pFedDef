@@ -200,7 +200,7 @@ def get_learners_ensemble(
         return LearnersEnsemble(learners=learners, learners_weights=learners_weights)
 
 
-def get_loaders(type_, root_path, batch_size, is_validation):
+def get_loaders(type_, root_path, batch_size, is_validation, synthetic_train_portion=None):
     """
     constructs lists of `torch.utils.DataLoader` object from the given files in `root_path`;
      corresponding to `train_iterator`, `val_iterator` and `test_iterator`;
@@ -236,7 +236,8 @@ def get_loaders(type_, root_path, batch_size, is_validation):
                 batch_size=batch_size,
                 inputs=inputs,
                 targets=targets,
-                train=True
+                train=True,
+                synthetic_train_portion=synthetic_train_portion
             )
 
         val_iterator = \
@@ -271,7 +272,7 @@ def get_loaders(type_, root_path, batch_size, is_validation):
     return train_iterators, val_iterators, test_iterators
 
 
-def get_loader(type_, path, batch_size, train, inputs=None, targets=None):
+def get_loader(type_, path, batch_size, train, inputs=None, targets=None, synthetic_train_portion=None):
     """
     constructs a torch.utils.DataLoader object from the given path
     :param type_: type of the dataset; possible are `tabular`, `images` and `text`
@@ -305,6 +306,9 @@ def get_loader(type_, path, batch_size, train, inputs=None, targets=None):
     # drop last batch, because of BatchNorm layer used in mobilenet_v2
     drop_last = ((type_ == "cifar100") or (type_ == "cifar10")) and (len(dataset) > batch_size) and train
 
+    if synthetic_train_portion is not None and train:
+        dataset = SyntheticDataset(dataset, synthetic_train_portion)
+
     return DataLoader(dataset, batch_size=batch_size, shuffle=train, drop_last=drop_last)
 
 
@@ -318,6 +322,7 @@ def get_client(
         logger,
         local_steps,
         tune_locally,
+        synthetic=False,
 ):
     """
 
@@ -382,7 +387,8 @@ def get_client(
             test_iterator=test_iterator,
             logger=logger,
             local_steps=local_steps,
-            tune_locally=tune_locally
+            tune_locally=tune_locally,
+            synthetic=synthetic
         )
     elif client_type == 'FedEM_dverge':
         return Adv_MixtureClient_DVERGE(

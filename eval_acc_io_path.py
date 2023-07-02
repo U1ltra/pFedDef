@@ -71,6 +71,7 @@ args_.verbose = 1
 args_.save_path = 'weights/cifar/dummy/'
 args_.validation = False
 args_.aggregation_op = None
+args_.synthetic_train_portion = None
 
 # Generate the dummy values here
 aggregator, clients = dummy_aggregator(args_, num_user=40)
@@ -105,7 +106,10 @@ for f_path in paths[1:]:
 
     if setting == 'FedAvg':
         
-        root_path = f"{f_path}/weights"
+        if os.path.exists(f"{f_path}/weights"):
+            root_path = f"{f_path}/weights"
+        else:
+            root_path = f"{f_path}"
         
         args_.save_path = root_path
         aggregator.load_state(args_.save_path)

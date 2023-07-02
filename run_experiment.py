@@ -30,7 +30,8 @@ def init_clients(args_, root_path, logs_root):
             type_=LOADER_TYPE[args_.experiment],
             root_path=root_path,
             batch_size=args_.bz,
-            is_validation=args_.validation
+            is_validation=args_.validation,
+            synthetic_train_portion=args_.synthetic_train_portion,
         )
 
     print("===> Initializing clients..")
@@ -69,7 +70,8 @@ def init_clients(args_, root_path, logs_root):
             test_iterator=test_iterator,
             logger=logger,
             local_steps=args_.local_steps,
-            tune_locally=args_.locally_tune_clients
+            tune_locally=args_.locally_tune_clients,
+            synthetic=args_.synthetic_train_portion is not None,
         )
 
         clients_.append(client)

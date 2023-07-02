@@ -210,6 +210,13 @@ class Adv_NN(Personalized_NN):
             
         return 
     
+    def synthetize(self, x_in):
+        self.eval()
+
+        # TODO: Could use original x but add some large noises
+        self.x_syn = Variable(x_in, requires_grad=True)
+        self.y_syn = torch.argmax(self.forward(self.x_syn), dim = 1)
+
     def pgd_sub(self, atk_params, x_in, y_in, x_base = None):
         """
         Perform PGD without post-attack analysis

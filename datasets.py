@@ -10,6 +10,62 @@ from torch.utils.data import Dataset
 import numpy as np
 from PIL import Image
 
+class SyntheticDataset(Dataset):
+    """
+    Constructs a torch.utils.Dataset object from a given dataset;
+    expects dataset to be a torch.utils.Dataset object;
+    expects dataset to store tuples of the form (x, y) where x is vector and y is a scalar
+
+    Attributes
+    ----------
+    dataset: torch.utils.Dataset object
+
+    Methods
+    -------
+    __init__
+    __len__
+    __getitem__
+    """
+
+    def __init__(self, dataset, portion):
+        self.dataset = dataset
+        self.portion = portion
+
+        self.data = self.dataset.data
+        self.targets = self.dataset.targets
+
+        self.size = int(len(self.dataset) * self.portion)
+
+        data = torch.randint(0, 256, size=(32, 32, 3), dtype=torch.uint8)
+        self.synthetic_data = torch.randint(self.data.min(), int(self.data.max())+1, size = (self.data.size(0), self.data.size(1), self.data.size(2), self.data.size(3)), dtype=torch.uint8)
+        self.synthetic_targets = torch.randint(self.targets.min(), int(self.targets.max())+1, size = (self.targets.size(0),), dtype=torch.int64)
+
+        self.transform = \
+            Compose([
+                ToTensor(),
+                Normalize(
+                    (0.4914, 0.4822, 0.4465),
+                    (0.2023, 0.1994, 0.2010)
+                )
+            ])
+
+        # self.indices = np.random.choice(len(self.data), int(len(self.data) * self.portion), replace=False)
+        # self.data = self.data[self.indices]
+        # self.targets = self.targets[self.indices]
+    
+    def __len__(self):
+        return self.size
+    
+    def __getitem__(self, index):
+        img, target = self.data[index], int(self.targets[index])
+
+        img = Image.fromarray(img.numpy())
+
+        if self.transform is not None:
+            img = self.transform(img)
+        
+        return img, target, index
+
 
 class TabularDataset(Dataset):
     """
