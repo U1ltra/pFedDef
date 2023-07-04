@@ -89,7 +89,7 @@ def where(cond, x, y):
 
 
 
-def dummy_aggregator(args_, num_user=80):
+def dummy_aggregator(args_, num_user=80, random_sample=False):
 
     torch.manual_seed(args_.seed)
 
@@ -117,6 +117,12 @@ def dummy_aggregator(args_, num_user=80):
     )
     
     test_clients = test_clients_temp[:num_user]
+
+    if random_sample and len(clients_temp) > num_user:
+        sample = np.random.choice(a=len(clients_temp), size=num_user)
+        clients = [clients_temp[i] for i in sample]
+        test_clients = [test_clients_temp[i] for i in sample]
+        print("==> Randomly sampled clients: ", sample)
 
     logs_path = os.path.join(logs_root, "train", "global")
     os.makedirs(logs_path, exist_ok=True)
