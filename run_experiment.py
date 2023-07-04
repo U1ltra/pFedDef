@@ -71,7 +71,7 @@ def init_clients(args_, root_path, logs_root):
             logger=logger,
             local_steps=args_.local_steps,
             tune_locally=args_.locally_tune_clients,
-            synthetic=args_.synthetic_train_portion is not None,
+            synthetic_train_portion=args_.synthetic_train_portion,
         )
 
         clients_.append(client)

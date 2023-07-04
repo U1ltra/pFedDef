@@ -322,7 +322,7 @@ def get_client(
         logger,
         local_steps,
         tune_locally,
-        synthetic=False,
+        synthetic_train_portion=None,
 ):
     """
 
@@ -387,8 +387,7 @@ def get_client(
             test_iterator=test_iterator,
             logger=logger,
             local_steps=local_steps,
-            tune_locally=tune_locally,
-            synthetic=synthetic
+            tune_locally=tune_locally
         )
     elif client_type == 'FedEM_dverge':
         return Adv_MixtureClient_DVERGE(
@@ -399,6 +398,17 @@ def get_client(
             logger=logger,
             local_steps=local_steps,
             tune_locally=tune_locally
+        )
+    elif client_type == "unharden":
+        return Unharden_Client(
+            learners_ensemble=learners_ensemble,
+            train_iterator=train_iterator,
+            val_iterator=val_iterator,
+            test_iterator=test_iterator,
+            logger=logger,
+            local_steps=local_steps,
+            tune_locally=tune_locally,
+            synthetic_train_portion=synthetic_train_portion,
         )
     else:
         return Client(
@@ -428,7 +438,8 @@ def get_aggregator(
         test_clients,
         verbose,
         seed=None,
-        aggregation_op=None
+        aggregation_op=None,
+        synthetic_train_portion=None,
 ):
     """
     `personalized` corresponds to pFedMe
@@ -568,7 +579,8 @@ def get_aggregator(
             test_clients=test_clients,
             sampling_rate=sampling_rate,
             verbose=verbose,
-            seed=seed
+            seed=seed,
+            synthetic_train_portion=synthetic_train_portion,
         )
     else:
         raise NotImplementedError("{aggregator_type} is not a possible aggregator type."
@@ -576,8 +588,8 @@ def get_aggregator(
                                   " `personalized`, `clustered`, `fednova`, `AFL`,"
                                   " `FFL` and `decentralized`.")
 
-def save_arg_log(f_path, args):
-    f = open(f"{f_path}/arg_log", mode = 'w')
+def save_arg_log(f_path, args, exp_name):
+    f = open(f"{f_path}/{exp_name}", mode = 'w')
     f.write("args of this training!\n")
     f.write(
         str(args.__dict__)

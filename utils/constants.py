@@ -55,7 +55,7 @@ CLIENT_TYPE = {
     "FedEM_dverge": "FedEM_dverge",
     "FedAvg_adv": "normal_adv",
     "local_adv": "normal_adv",
-    "unharden": "normal_adv",
+    "unharden": "unharden",
 }
 
 SHAKESPEARE_CONFIG = {

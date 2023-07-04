@@ -686,7 +686,6 @@ class Adv_Client(Client):
             local_steps,
             tune_locally=False,
             dataset_name = 'cifar10',
-            synthetic=False,
     ):
         super(Adv_Client, self).__init__(
             learners_ensemble=learners_ensemble,
@@ -712,8 +711,6 @@ class Adv_Client(Client):
 
         self.unhardened_portion = None
         self.unhard = False
-
-        self.synthetic = synthetic
 
     def set_unhard(self, unhard = False, unharden_portion = None):
         self.unhard = unhard
@@ -772,6 +769,14 @@ class Adv_Client(Client):
         self.adv_nn = Adv_NN(self.combine_learners_ensemble(), self.altered_dataloader)
         return
 
+
+    def generate_sythetic_data(self, x_data):     
+        self.adv_nn.synthetize(x_data.cuda())
+        y_syn = self.adv_nn.y_syn
+        
+        return y_syn
+    
+    
     def generate_sythetic_data(self, x_data):     
         self.adv_nn.synthetize(x_data.cuda())
         y_syn = self.adv_nn.y_syn
@@ -786,11 +791,7 @@ class Adv_Client(Client):
         sample_size = int(np.ceil(num_datapoints * self.adv_proportion))
         sample = np.random.choice(a=num_datapoints, size=sample_size)
         x_data = self.adv_nn.dataloader.x_data[sample]
-
-        if self.synthetic:
-            y_data = self.generate_sythetic_data(x_data)
-        else:
-            y_data = self.adv_nn.dataloader.y_data[sample]
+        y_data = self.adv_nn.dataloader.y_data[sample]
         
         self.adv_nn.pgd_sub(self.atk_params, x_data.cuda(), y_data.cuda())
         x_adv = self.adv_nn.x_adv
@@ -824,3 +825,185 @@ class Adv_Client(Client):
         self.train_loader = iter(self.train_iterator)
         
         return
+    
+class Unharden_Client(Client):
+    """ 
+    Unharden client with more params -- use to PGD generate data between rounds
+    """
+    def __init__(
+            self,
+            learners_ensemble,
+            train_iterator,
+            val_iterator,
+            test_iterator,
+            logger,
+            local_steps,
+            tune_locally=False,
+            dataset_name = 'cifar10',
+            synthetic_train_portion=None,
+    ):
+        super(Unharden_Client, self).__init__(
+            learners_ensemble=learners_ensemble,
+            train_iterator=train_iterator,
+            val_iterator=val_iterator,
+            test_iterator=test_iterator,
+            logger=logger,
+            local_steps=local_steps,
+            tune_locally=tune_locally
+        )
+
+        self.adv_proportion = 0
+        self.atk_params = None
+        
+        # Make copy of dataset and set aside for adv training
+        self.og_dataloader = deepcopy(self.train_iterator) # Update self.train_loader every iteration
+        
+        # Add adversarial client 
+        combined_model = self.combine_learners_ensemble()
+        self.altered_dataloader = self.gen_customdataloader(self.og_dataloader)
+        self.adv_nn = Adv_NN(combined_model, self.altered_dataloader)
+        self.dataset_name = dataset_name
+
+        self.synthetic_train_portion = synthetic_train_portion
+        self.synthetic = self.synthetic_train_portion != 0.0
+    
+    def gen_customdataloader(self, og_dataloader):
+        # Combine Validation Data across all clients as test
+        data_x = []
+        data_y = []
+
+        for (x,y,idx) in og_dataloader.dataset:
+            data_x.append(x)
+            data_y.append(y)
+
+        data_x = torch.stack(data_x)
+        try:
+            data_y = torch.stack(data_y)
+        except:
+            data_y = torch.tensor(data_y)
+        dataloader = Custom_Dataloader(data_x, data_y)
+        
+        return dataloader
+    
+    def build_synthetic_data(self):
+        # Build synthetic data
+
+        self.train_iterator.dataset.gen_synthetic_data(self.synthetic_train_portion)
+        self.train_iterator.dataset.set_portions(
+            orig_portion = 0.0, synthetic_portion = 1.0, unharden_portion = 0.0
+        )
+
+        dataloader = self.gen_customdataloader(self.train_iterator)
+        # self.synthetic_data = self.train_iterator.dataset.synthetic_data
+        self.synthetic_data = dataloader.x_data
+
+        self.adv_nn.synthetize(self.synthetic_data.cuda())
+        self.synthetic_target = self.adv_nn.y_syn
+        self.train_iterator.dataset.set_synthetic_targets(self.synthetic_target.cpu())
+
+        
+
+    def build_unharden_data(self):
+        # Build unharden data
+        sample, x_adv, y_adv = self.generate_adversarial_data()
+        self.unharden_data = x_adv
+        self.unharden_target = y_adv
+        self.train_iterator.dataset.set_unharden_data(self.unharden_data.cpu())
+        self.train_iterator.dataset.set_unharden_targets(self.unharden_target.cpu())
+
+        if self.synthetic:
+            self.train_iterator.dataset.set_portions(
+                orig_portion = 0.0, synthetic_portion = 0.0, unharden_portion = 1.0
+            )
+        else:
+            self.train_iterator.dataset.set_portions(
+                orig_portion = 1-self.adv_proportion, synthetic_portion = 0.0, unharden_portion = self.adv_proportion
+            )
+
+
+    def set_adv_params(self, adv_proportion = 0, atk_params = None):
+        self.adv_proportion = adv_proportion
+        self.atk_params = atk_params
+        print("atk_params: ", self.atk_params)
+        print("adv_proportion: ", self.adv_proportion)
+    
+    def combine_learners_ensemble(self):
+
+        # This is where the models are stored -- one for each mixture --> learner.model for nn
+        hypotheses = self.learners_ensemble.learners
+
+        # obtain the state dict for each of the weights 
+        weights_h = []
+
+        model_weights = self.learners_ensemble.learners_weights
+        
+        for h in hypotheses:
+            weights_h += [h.model.state_dict()]
+        
+        # first make the model with empty weights
+        new_model = deepcopy(hypotheses[0].model)
+        new_model.eval()
+        new_weight_dict = deepcopy(weights_h[0])
+        for key in weights_h[0]:
+            htemp = model_weights[0]*weights_h[0][key]
+            for i in range(1,len(model_weights)):
+                htemp+=model_weights[i]*weights_h[i][key]
+            new_weight_dict[key] = htemp
+        new_model.load_state_dict(new_weight_dict)
+        
+        return new_model
+    
+    def update_advnn(self):
+        # reassign weights after trained
+        self.adv_nn = Adv_NN(self.combine_learners_ensemble(), self.altered_dataloader)
+        return
+    
+    def generate_adversarial_data(self):
+        # Generate adversarial datapoints while recognizing idx of sampled without replacement
+        
+        # Draw random idx without replacement 
+        num_datapoints = self.train_iterator.dataset.data.shape[0]
+        sample_size = int(np.ceil(num_datapoints * self.adv_proportion))
+        sample = np.random.choice(a=num_datapoints, size=sample_size)
+        dataloader = self.gen_customdataloader(self.train_iterator)
+        x_data = dataloader.x_data[sample]
+        y_data = dataloader.y_data[sample]
+        
+        self.adv_nn.pgd_sub(self.atk_params, x_data.cuda(), y_data.cuda())
+        x_adv = self.adv_nn.x_adv
+        y_adv = self.adv_nn.y_adv
+
+        x_adv_res = []
+        for i in range(x_adv.shape[0]):
+            x_val_normed = x_adv[i]
+            try:
+                x_val_unnorm = unnormalize_cifar10(x_val_normed)
+            except:
+                x_val_unnorm = unnormalize_femnist(x_val_normed)
+
+            # x_adv[i] = x_val_unnorm
+            x_adv_res.append(x_val_unnorm)
+        
+        x_adv_res = torch.stack(x_adv_res)
+        x_adv = x_adv_res
+        
+        return sample, x_adv, y_adv
+    
+    def assign_advdataset(self):
+         # Flush current used dataset with original
+        self.train_iterator = deepcopy(self.og_dataloader)
+
+        if self.synthetic_train_portion != 0.0:
+            print("Building synthetic data")
+            self.build_synthetic_data()
+        else:
+            self.train_iterator.dataset.set_portions(
+                orig_portion = 1.0, synthetic_portion = 0.0, unharden_portion = 0.0
+            )
+        
+        self.build_unharden_data()
+
+        self.train_loader = iter(self.train_iterator)
+        
+        return
+
