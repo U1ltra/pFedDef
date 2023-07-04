@@ -115,6 +115,7 @@ if __name__ == "__main__":
             args_adv.adv_params["Du"],
         ) = get_atk_params(args_adv, adv_clients, args_adv.num_clients, K, eps)
         adv_aggregator.set_atk_params(args_adv.adv_params)
+        # adv_aggregator.set_unharden_portion(1.0)
 
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/atk_start/weights\n")
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/unharden/weights\n")
@@ -231,8 +232,8 @@ if __name__ == "__main__":
             os.makedirs(save_root, exist_ok=True)
             aggregator.save_state(save_root)
 
-        save_arg_log(f_path=args_.logs_root, args=args_, name="args")
-        save_arg_log(f_path=args_adv.logs_root, args=args_adv, name="args_adv")
+        save_arg_log(f_path=args_.logs_root, args=args_, exp_name="args")
+        save_arg_log(f_path=args_adv.logs_root, args=args_adv, exp_name="args_adv")
 
         del args_, aggregator, clients
         torch.cuda.empty_cache()

@@ -251,7 +251,7 @@ def early_replace_updates():
             print(f"| {epoch:<10} | {i:<10} | {diff:9.3f} |")
 
 def pipeline_results():
-    base_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline_synthetic/unharden_rep_pipeline_synthetic"
+    base_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline_multi_trials/unhard_trial1"
     stage_names = ["atk_start", "unharden", "before_replace", "replace"]
     stage_paths = [f"{base_path}/{name}/weights/eval" for name in stage_names]
 

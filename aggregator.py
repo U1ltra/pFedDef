@@ -650,6 +650,7 @@ class UnhardenAggregator(CentralizedAggregator):
         verbose=0,
         seed=None,
         aggregation_op=None,
+        synthetic_train_portion=0.0,
         *args,
         **kwargs,
     ):
@@ -668,6 +669,7 @@ class UnhardenAggregator(CentralizedAggregator):
             *args,
             **kwargs,
         )
+        self.synthetic_train_portion = synthetic_train_portion
 
     def set_unharden_portion(self, portion):
         self.unharden_portion = portion
@@ -743,13 +745,16 @@ class UnhardenAggregator(CentralizedAggregator):
                 self.Ru,
                 self.step_size,
             )
+            print(f"adv agg Fu: {Fu}")
 
             # Assign proportion and attack params
             # Assign proportion and compute new dataset
             for i in range(self.n_clients):
+                print(f"Client {i} building {Fu[i]*100}% adv data")
                 self.clients[i].set_adv_params(Fu[i], self.atk_params)
                 self.clients[i].update_advnn()
                 self.clients[i].assign_advdataset()
+                print()
 
     def best_replace_scale(self):
         client_weights = np.load(
