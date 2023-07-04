@@ -121,7 +121,6 @@ def dummy_aggregator(args_, num_user=80, random_sample=False):
     if random_sample and len(clients_temp) > num_user:
         sample = np.random.choice(a=len(clients_temp), size=num_user)
         clients = [clients_temp[i] for i in sample]
-        test_clients = [test_clients_temp[i] for i in sample]
         print("==> Randomly sampled clients: ", sample)
 
     logs_path = os.path.join(logs_root, "train", "global")
