@@ -108,6 +108,17 @@ def dummy_aggregator(args_, num_user=80):
     )
 
     clients = clients_temp[:num_user]
+
+    if len(clients_temp) > num_user:
+        # random sample clients idx
+        sample_idx = np.random.choice(
+            len(clients_temp),
+            num_user,
+            replace=False
+        )
+        clients = [clients_temp[i] for i in sample_idx]
+        print("==> Randomly sampled clients.. ", sample_idx)
+        
     
     print("==> Test Clients initialization..")
     test_clients_temp = init_clients(

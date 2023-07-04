@@ -35,7 +35,7 @@ if __name__ == "__main__":
     path_log = open(f"{exp_root_path}/path_log", mode="w")
     path_log.write(f"FedAvg\n")
 
-    exp_names = [f"unharden_rep_pipeline_synthetic"]
+    exp_names = [f"unharden_trial{i}" for i in range(1, 6)]
     G_val = [0.4] * len(exp_names)
 
     torch.manual_seed(42)
@@ -53,7 +53,7 @@ if __name__ == "__main__":
         args_.input_dimension = None
         args_.output_dimension = None
         args_.n_learners = 1  # Number of hypotheses assumed in system
-        args_.n_rounds = 50  # Number of rounds training takes place
+        args_.n_rounds = 2  # Number of rounds training takes place
         args_.bz = 128
         args_.local_steps = 1
         args_.lr_lambda = 0
@@ -70,6 +70,7 @@ if __name__ == "__main__":
         args_.verbose = 1
         args_.logs_root = f"{exp_root_path}/{exp_names[itt]}/logs"
         args_.save_path = f"{exp_root_path}/{exp_names[itt]}"
+        args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline/atk_start/weights"  # load the model from the 150 FAT epoch
         args_.validation = False
         args_.aggregation_op = None
         args_.save_interval = 10
@@ -87,6 +88,11 @@ if __name__ == "__main__":
         # Generate the dummy values here
         aggregator, clients = dummy_aggregator(args_, num_clients)
         Ru, atk_params, num_h, Du = get_atk_params(args_, clients, num_clients, K, eps)
+        if "load_path" in args_:
+            print(f"Loading model from {args_.load_path}")
+            load_root = os.path.join(args_.load_path)
+            aggregator.load_state(load_root)
+            aggregator.update_clients()     # update the client's parameters immediatebly, since they should have an up-to-date consistent global model before training starts
 
         args_adv = copy.deepcopy(args_)
         args_adv.method = "unharden"
@@ -207,7 +213,8 @@ if __name__ == "__main__":
             os.makedirs(save_root, exist_ok=True)
             aggregator.save_state(save_root)
 
-        save_arg_log(f_path=args_.logs_root, args=args_)
+        save_arg_log(f_path=args_.logs_root, args=args_, name="args")
+        save_arg_log(f_path=args_.logs_root, args=args_adv, name="args_adv")
 
         del args_, aggregator, clients
         torch.cuda.empty_cache()

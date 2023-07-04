@@ -570,8 +570,8 @@ def get_aggregator(
                                   " `personalized`, `clustered`, `fednova`, `AFL`,"
                                   " `FFL` and `decentralized`.")
 
-def save_arg_log(f_path, args):
-    f = open(f"{f_path}/arg_log", mode = 'w')
+def save_arg_log(f_path, args, name):
+    f = open(f"{f_path}/{name}", mode = 'w')
     f.write("args of this training!\n")
     f.write(
         str(args.__dict__)
