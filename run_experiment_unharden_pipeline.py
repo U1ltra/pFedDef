@@ -53,7 +53,7 @@ if __name__ == "__main__":
         args_.input_dimension = None
         args_.output_dimension = None
         args_.n_learners = 1  # Number of hypotheses assumed in system
-        args_.n_rounds = 2  # Number of rounds training takes place
+        args_.n_rounds = 50  # Number of rounds training takes place
         args_.bz = 128
         args_.local_steps = 1
         args_.lr_lambda = 0
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline/atk_start/weights"  # load the model from the 150 FAT epoch
         args_.validation = False
         args_.aggregation_op = None
-        args_.save_interval = 10
+        args_.save_interval = 5
         # args_.synthetic_train_portion = None
 
         Q = 10  # ADV dataset update freq
