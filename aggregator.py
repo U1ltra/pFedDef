@@ -288,6 +288,8 @@ class Aggregator(ABC):
             chkpts_path = os.path.join(dir_path, f"{mode}_client_weights.npy")
 
             weights = np.load(chkpts_path)
+            # if mode == "train" and weights.shape[0] != self.n_clients:
+            #     weights = np.ones((self.n_clients, self.n_learners))
 
             for client_id, client in enumerate(clients):
                 client.learners_ensemble.learners_weights = weights[client_id]
