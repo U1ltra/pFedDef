@@ -35,8 +35,8 @@ if __name__ == "__main__":
     path_log = open(f"{exp_root_path}/path_log", mode="w")
     path_log.write(f"FedAvg\n")
 
-    exp_names = [f"unhard_trial{i}" for i in range(1,6)]
-    G_val = [0.4] * len(exp_names)
+    G_val = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    exp_names = [f"unharden_portion{i}" for i in G_val]
 
     torch.manual_seed(42)
 
@@ -98,7 +98,7 @@ if __name__ == "__main__":
         args_adv.method = "unharden"
         args_adv.num_clients = 5
         args_adv.synthetic_train_portion = 0.0
-        adv_aggregator, adv_clients = dummy_aggregator(args_adv, args_adv.num_clients, random_sample=True)
+        adv_aggregator, adv_clients = dummy_aggregator(args_adv, args_adv.num_clients, random_sample=False)
 
         args_adv.unharden_start_round = 0
         args_adv.atk_rounds = 1
