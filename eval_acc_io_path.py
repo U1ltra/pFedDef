@@ -121,6 +121,8 @@ for f_path in paths[1:]:
             weights_h += [h.model.state_dict()]
 
         weights = np.load(f'{root_path}/train_client_weights.npy')
+        if weights.shape[0] != num_models:
+            weights = np.ones((num_models, nL))
         
         model_weights = []
 
