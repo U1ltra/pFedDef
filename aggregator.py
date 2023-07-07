@@ -229,7 +229,7 @@ class Aggregator(ABC):
             torch.save(learner.model.state_dict(), save_path)
 
         learners_weights = np.zeros((self.n_clients, self.n_learners))
-        # learners_weights = np.ones((40, self.n_learners))
+        learners_weights = np.ones((40, self.n_learners))
         test_learners_weights = np.zeros((self.n_test_clients, self.n_learners))
 
         for mode, weights, clients in [
