@@ -104,8 +104,11 @@ for f_path in paths[1:]:
     np.set_printoptions(formatter={'float': lambda x: "{0:0.2f}".format(x)})
 
     if setting == 'FedAvg':
-        
-        root_path = f"{f_path}/weights"
+
+        if os.path.exists(f"{f_path}/weights"):
+            root_path = f"{f_path}/weights"
+        else:
+            root_path = f"{f_path}"
         
         args_.save_path = root_path
         aggregator.load_state(args_.save_path)
