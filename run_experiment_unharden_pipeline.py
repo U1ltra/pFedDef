@@ -32,17 +32,18 @@ import numba
 
 if __name__ == "__main__":
     exp_root_path = input("exp_root_path>>>>")
+    # exp_root_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/test"
+
     path_log = open(f"{exp_root_path}/path_log", mode="w")
     path_log.write(f"FedAvg\n")
 
-    G_val = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
-    exp_names = [f"unharden_portion{i}" for i in G_val]
+    G_val = [0.0, 0.4, 0.8, 1.0]
+    exp_names = [f"unharden_{G_val[i]}" for i in range(len(G_val))]
 
     torch.manual_seed(42)
 
     for itt in range(len(exp_names)):
-        print("running trial:", itt)
-        print("exp_name:", exp_names[itt])
+        print("running exp_name:", exp_names[itt])
 
         ## INPUT GROUP 2 - experiment macro parameters ##
         args_ = Args()
@@ -74,11 +75,16 @@ if __name__ == "__main__":
         args_.validation = False
         args_.aggregation_op = None
         args_.save_interval = 5
+        args_.eval_train = False
         args_.synthetic_train_portion = None
+        args_.reserve_size = None 
+        args_.data_portions = None
+        args_.unharden_source = None
+        args_.num_clients = 40  # Number of clients to train with
 
         Q = 10  # ADV dataset update freq
         G = G_val[itt]  # Adversarial proportion aimed globally
-        num_clients = 40  # Number of clients to train with
+        G_global = 0.4  # Global proportion of adversaries
         S = 0.05  # Threshold param for robustness propagation
         step_size = 0.01  # Attack step size
         K = 10  # Number of steps when generating adv examples
@@ -86,8 +92,8 @@ if __name__ == "__main__":
         ## END INPUT GROUP 2 ##
 
         # Generate the dummy values here
-        aggregator, clients = dummy_aggregator(args_, num_clients, random_sample=False)
-        Ru, atk_params, num_h, Du = get_atk_params(args_, clients, num_clients, K, eps)
+        aggregator, clients = dummy_aggregator(args_, args_.num_clients, random_sample=False)
+        Ru, atk_params, num_h, Du = get_atk_params(args_, clients, args_.num_clients, K, eps)
         if "load_path" in args_:
             print(f"Loading model from {args_.load_path}")
             load_root = os.path.join(args_.load_path)
@@ -97,7 +103,10 @@ if __name__ == "__main__":
         args_adv = copy.deepcopy(args_)
         args_adv.method = "unharden"
         args_adv.num_clients = 5
-        args_adv.synthetic_train_portion = 0.0
+        args_adv.reserve_size = 3.0 # data sample size reserved for each client. 3.0 means 3 times the size of the original dataset at a given client
+        args_adv.synthetic_train_portion = 1.0 # the portion of the synthetic data in proportion to the original dataset
+        args_adv.unharden_source = "orig" # the source of the unharden data (orig, synthetic, or orig+synthetic)
+        args_adv.data_portions = (0.0, 0.0, 0.0) # portions of orig, synthetic, and unharden data in final training dataset, sum smaller than 3.0 (orig, synthetic, or unharden)
         adv_aggregator, adv_clients = dummy_aggregator(args_adv, args_adv.num_clients, random_sample=False)
 
         args_adv.unharden_start_round = 0
@@ -121,7 +130,7 @@ if __name__ == "__main__":
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/unharden/weights\n")
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/before_replace/weights\n")
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/replace/weights\n")
-        if args_adv.save_interval is not None:
+        if args_.eval_train and args_adv.save_interval is not None:
             for i in range(0, args_.n_rounds, args_.save_interval):
                 path_log.write(
                     f"{exp_root_path}/{exp_names[itt]}/FAT_train/weights/gt{i}\n"
@@ -175,7 +184,7 @@ if __name__ == "__main__":
             # If statement catching every Q rounds -- update dataset
             if current_round != 0 and current_round % Q == 0:  #
                 # Obtaining hypothesis information
-                Whu = np.zeros([num_clients, num_h])  # Hypothesis weight for each user
+                Whu = np.zeros([args_.num_clients, num_h])  # Hypothesis weight for each user
                 for i in range(len(clients)):
                     # print("client", i)
                     temp_client = aggregator.clients[i]
@@ -184,10 +193,10 @@ if __name__ == "__main__":
 
                 row_sums = Whu.sum(axis=1)
                 Whu = Whu / row_sums[:, np.newaxis]
-                Wh = np.sum(Whu, axis=0) / num_clients
+                Wh = np.sum(Whu, axis=0) / args_.num_clients
 
                 # Solve for adversarial ratio at every client
-                Fu = solve_proportions(G, num_clients, num_h, Du, Whu, S, Ru, step_size)
+                Fu = solve_proportions(G, args_.num_clients, num_h, Du, Whu, S, Ru, step_size)
                 print("global agg Fu", Fu)
 
                 # Assign proportion and attack params

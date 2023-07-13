@@ -72,6 +72,8 @@ args_.save_path = 'weights/cifar/dummy/'
 args_.validation = False
 args_.aggregation_op = None
 args_.synthetic_train_portion = None
+args_.reserve_size = None 
+args_.data_portions = None
 
 # Generate the dummy values here
 aggregator, clients = dummy_aggregator(args_, num_user=40)
