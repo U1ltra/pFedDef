@@ -31,7 +31,7 @@ def init_clients(args_, root_path, logs_root):
             root_path=root_path,
             batch_size=args_.bz,
             is_validation=args_.validation,
-            synthetic_train_portion=args_.synthetic_train_portion,
+            reserve_size=args_.reserve_size,
         )
 
     print("===> Initializing clients..")
@@ -72,6 +72,8 @@ def init_clients(args_, root_path, logs_root):
             local_steps=args_.local_steps,
             tune_locally=args_.locally_tune_clients,
             synthetic_train_portion=args_.synthetic_train_portion,
+            unharden_source=args_.unharden_source,
+            data_portions=args_.data_portions,
         )
 
         clients_.append(client)

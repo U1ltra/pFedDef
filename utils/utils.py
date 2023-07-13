@@ -200,7 +200,7 @@ def get_learners_ensemble(
         return LearnersEnsemble(learners=learners, learners_weights=learners_weights)
 
 
-def get_loaders(type_, root_path, batch_size, is_validation, synthetic_train_portion=None):
+def get_loaders(type_, root_path, batch_size, is_validation, reserve_size=None):
     """
     constructs lists of `torch.utils.DataLoader` object from the given files in `root_path`;
      corresponding to `train_iterator`, `val_iterator` and `test_iterator`;
@@ -237,7 +237,7 @@ def get_loaders(type_, root_path, batch_size, is_validation, synthetic_train_por
                 inputs=inputs,
                 targets=targets,
                 train=True,
-                synthetic_train_portion=synthetic_train_portion
+                reserve_size=reserve_size
             )
 
         val_iterator = \
@@ -272,7 +272,7 @@ def get_loaders(type_, root_path, batch_size, is_validation, synthetic_train_por
     return train_iterators, val_iterators, test_iterators
 
 
-def get_loader(type_, path, batch_size, train, inputs=None, targets=None, synthetic_train_portion=None):
+def get_loader(type_, path, batch_size, train, inputs=None, targets=None, reserve_size=None):
     """
     constructs a torch.utils.DataLoader object from the given path
     :param type_: type of the dataset; possible are `tabular`, `images` and `text`
@@ -306,8 +306,8 @@ def get_loader(type_, path, batch_size, train, inputs=None, targets=None, synthe
     # drop last batch, because of BatchNorm layer used in mobilenet_v2
     drop_last = ((type_ == "cifar100") or (type_ == "cifar10")) and (len(dataset) > batch_size) and train
 
-    if synthetic_train_portion is not None and train:
-        dataset = SyntheticDataset(dataset, synthetic_train_portion)
+    if reserve_size is not None and train:
+        dataset = SyntheticDataset(dataset, reserve_size)
 
     return DataLoader(dataset, batch_size=batch_size, shuffle=train, drop_last=drop_last)
 
@@ -323,6 +323,8 @@ def get_client(
         local_steps,
         tune_locally,
         synthetic_train_portion=None,
+        unharden_source=None,
+        data_portions=None,
 ):
     """
 
@@ -409,6 +411,8 @@ def get_client(
             local_steps=local_steps,
             tune_locally=tune_locally,
             synthetic_train_portion=synthetic_train_portion,
+            unharden_source=unharden_source,
+            data_portions=data_portions,
         )
     else:
         return Client(
@@ -439,7 +443,6 @@ def get_aggregator(
         verbose,
         seed=None,
         aggregation_op=None,
-        synthetic_train_portion=None,
 ):
     """
     `personalized` corresponds to pFedMe
@@ -580,7 +583,6 @@ def get_aggregator(
             sampling_rate=sampling_rate,
             verbose=verbose,
             seed=seed,
-            synthetic_train_portion=synthetic_train_portion,
         )
     else:
         raise NotImplementedError("{aggregator_type} is not a possible aggregator type."

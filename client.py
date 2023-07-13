@@ -15,6 +15,7 @@ from transfer_attacks.Personalized_NN import *
 from transfer_attacks.Custom_Dataloader import *
 from transfer_attacks.unnormalize import *
 from itertools import combinations
+from torch.utils.data import DataLoader
 
 
 class Client(object):
@@ -841,6 +842,8 @@ class Unharden_Client(Client):
             tune_locally=False,
             dataset_name = 'cifar10',
             synthetic_train_portion=None,
+            unharden_source=None,
+            data_portions=None,
     ):
         super(Unharden_Client, self).__init__(
             learners_ensemble=learners_ensemble,
@@ -864,8 +867,12 @@ class Unharden_Client(Client):
         self.adv_nn = Adv_NN(combined_model, self.altered_dataloader)
         self.dataset_name = dataset_name
 
-        self.synthetic_train_portion = synthetic_train_portion
-        self.synthetic = self.synthetic_train_portion != 0.0
+        self.synthetic_train_portion = synthetic_train_portion # synthetic data amount in portion of orig data
+        self.synthetic = self.synthetic_train_portion != 0.0 # if synthetic data is used
+
+        self.unharden_source = unharden_source # source data used to generate unharden data (orig, synthetic, or orig+synthetic)
+        self.poritons_set = (1.0, 1.0, 1.0) # portions of orig, synthetic, and unharden data in final training dataset, sum smaller than 3.0 (orig, synthetic, or unharden)
+        self.poritons_set = data_portions # portions of orig, synthetic, and unharden data in final training dataset, sum smaller than 3.0 (orig, synthetic, or unharden)
     
     def gen_customdataloader(self, og_dataloader):
         # Combine Validation Data across all clients as test
@@ -886,12 +893,17 @@ class Unharden_Client(Client):
         return dataloader
     
     def build_synthetic_data(self):
+        if not self.synthetic:
+            return
+        
         # Build synthetic data
-
+        print("Building synthetic data", self.synthetic_train_portion)
         self.train_iterator.dataset.gen_synthetic_data(self.synthetic_train_portion)
-        self.train_iterator.dataset.set_portions(
-            orig_portion = 0.0, synthetic_portion = 1.0, unharden_portion = 0.0
-        )
+        print("size of data (synthetic): ", self.train_iterator.dataset.data.shape)
+        print("size of targets (synthetic): ", self.train_iterator.dataset.targets.shape)
+        self.train_iterator.dataset.set_data("synthetic")
+        print("size of data (set_data): ", self.train_iterator.dataset.data.shape)
+        print("size of targets (set_data): ", self.train_iterator.dataset.targets.shape)
 
         dataloader = self.gen_customdataloader(self.train_iterator)
         # self.synthetic_data = self.train_iterator.dataset.synthetic_data
@@ -900,25 +912,29 @@ class Unharden_Client(Client):
         self.adv_nn.synthetize(self.synthetic_data.cuda())
         self.synthetic_target = self.adv_nn.y_syn
         self.train_iterator.dataset.set_synthetic_targets(self.synthetic_target.cpu())
-
+        print("size of data (set_synthetic_targets): ", self.train_iterator.dataset.data.shape)
+        print("size of targets (set_synthetic_targets): ", self.train_iterator.dataset.targets.shape)
         
 
     def build_unharden_data(self):
         # Build unharden data
-        sample, x_adv, y_adv = self.generate_adversarial_data()
+        print("Building unharden data from ", self.unharden_source)
+        self.train_iterator.dataset.set_data(self.unharden_source)
+
+        x_adv, y_adv = self.generate_adversarial_data()
         self.unharden_data = x_adv
         self.unharden_target = y_adv
-        self.train_iterator.dataset.set_unharden_data(self.unharden_data.cpu())
-        self.train_iterator.dataset.set_unharden_targets(self.unharden_target.cpu())
+        self.train_iterator.dataset.set_unharden(self.unharden_data.cpu(), self.unharden_target.cpu())
+        print("size of data (set_unharden): ", self.train_iterator.dataset.data.shape)
+        print("size of targets (set_unharden): ", self.train_iterator.dataset.targets.shape)
 
-        if self.synthetic:
-            self.train_iterator.dataset.set_portions(
-                orig_portion = 0.0, synthetic_portion = 0.0, unharden_portion = 1.0
-            )
-        else:
-            self.train_iterator.dataset.set_portions(
-                orig_portion = 1-self.adv_proportion, synthetic_portion = 0.0, unharden_portion = self.adv_proportion
-            )
+        self.train_iterator.dataset.set_portions(
+            orig_portion = self.poritons_set[0],
+            synthetic_portion = self.poritons_set[1],
+            unharden_portion = self.poritons_set[2]
+        )
+        print("size of data (set_portions): ", self.train_iterator.dataset.data.shape)
+        print("size of targets (set_portions): ", self.train_iterator.dataset.targets.shape)
 
 
     def set_adv_params(self, adv_proportion = 0, atk_params = None):
@@ -926,6 +942,8 @@ class Unharden_Client(Client):
         self.atk_params = atk_params
         print("atk_params: ", self.atk_params)
         print("adv_proportion: ", self.adv_proportion)
+
+        self.poritons_set = (1-self.adv_proportion, self.poritons_set[1], self.adv_proportion)
     
     def combine_learners_ensemble(self):
 
@@ -962,12 +980,9 @@ class Unharden_Client(Client):
         # Generate adversarial datapoints while recognizing idx of sampled without replacement
         
         # Draw random idx without replacement 
-        num_datapoints = self.train_iterator.dataset.data.shape[0]
-        sample_size = int(np.ceil(num_datapoints * self.adv_proportion))
-        sample = np.random.choice(a=num_datapoints, size=sample_size)
         dataloader = self.gen_customdataloader(self.train_iterator)
-        x_data = dataloader.x_data[sample]
-        y_data = dataloader.y_data[sample]
+        x_data = dataloader.x_data
+        y_data = dataloader.y_data
         
         self.adv_nn.pgd_sub(self.atk_params, x_data.cuda(), y_data.cuda())
         x_adv = self.adv_nn.x_adv
@@ -987,23 +1002,17 @@ class Unharden_Client(Client):
         x_adv_res = torch.stack(x_adv_res)
         x_adv = x_adv_res
         
-        return sample, x_adv, y_adv
+        return x_adv, y_adv
     
     def assign_advdataset(self):
          # Flush current used dataset with original
         self.train_iterator = deepcopy(self.og_dataloader)
+        print("size of train_iterator data: ", self.train_iterator.dataset.data.shape)
+        print("size of train_iterator target: ", self.train_iterator.dataset.targets.shape)
 
-        if self.synthetic_train_portion != 0.0:
-            print("Building synthetic data")
-            self.build_synthetic_data()
-        else:
-            self.train_iterator.dataset.set_portions(
-                orig_portion = 1.0, synthetic_portion = 0.0, unharden_portion = 0.0
-            )
-        
+        self.build_synthetic_data()
         self.build_unharden_data()
 
         self.train_loader = iter(self.train_iterator)
-        
         return
-
+        
