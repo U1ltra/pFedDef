@@ -37,8 +37,9 @@ if __name__ == "__main__":
     path_log = open(f"{exp_root_path}/path_log", mode="w")
     path_log.write(f"FedAvg\n")
 
-    G_val = [0.0, 0.4, 0.8, 1.0]
-    exp_names = [f"unharden_{G_val[i]}" for i in range(len(G_val))]
+    defense_mechanisms = ["trimmed_mean", "median", "krum"] # "bulyan"
+    exp_names = [f"defense_{defense_mechanisms[i]}" for i in range(len(defense_mechanisms))]
+    G_val = [0.4] * len(exp_names)
 
     torch.manual_seed(42)
 
@@ -73,13 +74,14 @@ if __name__ == "__main__":
         args_.save_path = f"{exp_root_path}/{exp_names[itt]}"
         args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline/atk_start/weights"  # load the model from the 150 FAT epoch
         args_.validation = False
-        args_.aggregation_op = None
+        args_.aggregation_op = defense_mechanisms[itt]
         args_.save_interval = 5
         args_.eval_train = False
         args_.synthetic_train_portion = None
         args_.reserve_size = None 
         args_.data_portions = None
         args_.unharden_source = None
+        args_.dump_path = f"{exp_root_path}/{exp_names[itt]}/dump"
         args_.num_clients = 40  # Number of clients to train with
 
         Q = 10  # ADV dataset update freq
@@ -124,7 +126,7 @@ if __name__ == "__main__":
             args_adv.adv_params["Du"],
         ) = get_atk_params(args_adv, adv_clients, args_adv.num_clients, K, eps)
         adv_aggregator.set_atk_params(args_adv.adv_params)
-        # adv_aggregator.set_unharden_portion(1.0)
+
 
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/atk_start/weights\n")
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/unharden/weights\n")

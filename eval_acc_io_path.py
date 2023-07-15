@@ -74,6 +74,8 @@ args_.aggregation_op = None
 args_.synthetic_train_portion = None
 args_.reserve_size = None 
 args_.data_portions = None
+args_.unharden_source = None
+args_.dump_path = None
 
 # Generate the dummy values here
 aggregator, clients = dummy_aggregator(args_, num_user=40)
