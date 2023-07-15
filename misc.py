@@ -274,14 +274,16 @@ def pipeline_results():
         print(f"| {stage_names[i]:<10} | {np.sum(acc) / (acc.shape[0] * acc.shape[1]) * 100:9.3f} | {np.sum(adv_acc) / (adv_acc.shape[0] * adv_acc.shape[1]) * 100:9.3f} |")
 
 def removed_indices():
-    base_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_def/defense_trimmed_mean"
+    defense = "krum" # "median", "trimmed_mean", "krum"
+    base_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_def/defense_krum"
     base_path = f"{base_path}/dump"
-    atk_clients = [0, 1, 2, 3, 4]
+    atk_clients = torch.arange(0, 5)
+    all_clients = torch.arange(0, 40)
     total_params = 0
 
     normal_rounds = []
     for i in range(49):
-        path = f"{base_path}/round{i}_tm.pkl"
+        path = f"{base_path}/round{i}_krum.pkl"
         with open(path, 'rb') as file:
             loaded_list = pickle.load(file)
         
@@ -292,7 +294,14 @@ def removed_indices():
             unique_numbers, counts = torch.unique(flat_removed_indices, return_counts=True)
             unique_numbers = unique_numbers.cpu()
             counts = counts.cpu()
-            removed_counts[unique_numbers] += counts
+
+            if defense == "median" or "krum":
+                for unique_number, count in zip(unique_numbers, counts):
+                    # add to other clients ececpt the current one 
+                    # cause each count of the current unique number will cause the loss from all other clients
+                    removed_counts[all_clients[all_clients != unique_number]] += count
+            elif defense == "trimmed_mean":
+                removed_counts[unique_numbers] += counts
 
             if i == 0:
                 total_params += flat_removed_indices.shape[0]
@@ -302,7 +311,7 @@ def removed_indices():
     # avg counts
     normal_rounds = torch.stack(normal_rounds).to(torch.float32)
     avg_normal = normal_rounds.mean(dim=0) / total_params
-    # bar plot  
+    # bar plot
     import matplotlib.pyplot as plt
     bars = plt.bar(torch.arange(1, 41), avg_normal)
     for i in atk_clients:
@@ -312,7 +321,7 @@ def removed_indices():
     plt.savefig(f"/home/ubuntu/Documents/jiarui/pFedDef/Evaluation/normal_rounds.png")
 
 
-    path = f"{base_path}/round49_tm.pkl"
+    path = f"{base_path}/round49_krum.pkl"
     with open(path, 'rb') as file:
         loaded_list = pickle.load(file)
     
@@ -323,7 +332,12 @@ def removed_indices():
         unique_numbers, counts = torch.unique(flat_removed_indices, return_counts=True)
         unique_numbers = unique_numbers.cpu()
         counts = counts.cpu()
-        removed_counts[unique_numbers] += counts
+
+        if defense == "median" or "krum":
+            for unique_number, count in zip(unique_numbers, counts):
+                removed_counts[all_clients[all_clients != unique_number]] += count
+        elif defense == "trimmed_mean":
+            removed_counts[unique_numbers] += counts
 
     
     # bar plot
