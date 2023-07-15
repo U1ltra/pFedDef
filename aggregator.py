@@ -537,6 +537,10 @@ class CentralizedAggregator(Aggregator):
         self.acc_log_dict["train_loss"] = []
         self.acc_log_dict["test_loss"] = []
 
+        self.dump_path = kwargs.get("dump_path", None)
+        if self.dump_path is not None:
+            os.makedirs(self.dump_path, exist_ok=True)
+
     def mix(self, replace=False):
         self.sample_clients()
 
@@ -572,8 +576,25 @@ class CentralizedAggregator(Aggregator):
             learners = [client.learners_ensemble[learner_id] for client in self.clients]
             if self.aggregation_op is None:
                 average_learners(learners, learner, weights=self.clients_weights)
-            elif self.aggregation_op == "trimmed_mean":
-                byzantine_robust_aggregate_tm(learners, learner, beta=0.05)
+            elif self.aggregation_op == 'median':
+                byzantine_robust_aggregate_median(
+                    learners, 
+                    learner, 
+                    dump_path=os.path.join(self.dump_path, f"round{self.c_round}_median.pkl")
+                )
+            elif self.aggregation_op == 'trimmed_mean':
+                byzantine_robust_aggregate_tm(
+                    learners, 
+                    learner, 
+                    beta=0.05, 
+                    dump_path=os.path.join(self.dump_path, f"round{self.c_round}_tm.pkl")
+                )
+            elif self.aggregation_op == 'krum':
+                byzantine_robust_aggregate_krum(
+                    learners, 
+                    learner, 
+                    dump_path=os.path.join(self.dump_path, f"round{self.c_round}_krum.pkl")
+                )
 
         # assign the updated model to all clients
         self.update_clients()
@@ -652,7 +673,6 @@ class UnhardenAggregator(CentralizedAggregator):
         verbose=0,
         seed=None,
         aggregation_op=None,
-        synthetic_train_portion=0.0,
         *args,
         **kwargs,
     ):
@@ -671,7 +691,6 @@ class UnhardenAggregator(CentralizedAggregator):
             *args,
             **kwargs,
         )
-        self.synthetic_train_portion = synthetic_train_portion
 
     def set_unharden_portion(self, portion):
         self.unharden_portion = portion
@@ -691,7 +710,8 @@ class UnhardenAggregator(CentralizedAggregator):
         self.gen_unharden_samples()
         self.sample_clients()
 
-        for client in self.clients:
+        for idx, client in enumerate(self.clients):
+            print(f"Client {idx} has {client.n_train_samples} samples")
             client.step()
 
         for learner_id, learner in enumerate(self.global_learners_ensemble):

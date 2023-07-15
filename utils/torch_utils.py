@@ -1,5 +1,7 @@
 import warnings
 
+import os
+import pickle
 import torch
 import torch.nn as nn
 import numpy as np
@@ -122,7 +124,8 @@ def byzantine_robust_aggregate_tm(
         weights=None,
         average_params=True,
         average_gradients=False,
-        beta=0.05):
+        beta=0.05,
+        dump_path=None):
     """
     Compute the trimmed mean of a list of learners_ensemble and store it into learner
 
@@ -144,6 +147,8 @@ def byzantine_robust_aggregate_tm(
     
     param_val = defaultdict(list)
     grad_val = defaultdict(list)
+
+    sort_indices = list()
 
     for key in target_state_dict:
 
@@ -175,8 +180,10 @@ def byzantine_robust_aggregate_tm(
 
             N_removed = int(beta*len(learners))
             if average_params:
-                sorted_params, _ = torch.sort(torch.stack(param_val[key], dim=0), dim=0)
+                sorted_params, indices = torch.sort(torch.stack(param_val[key], dim=0), dim=0)
                 target_state_dict[key].data = torch.mean(sorted_params[N_removed:-N_removed], dim=0)
+                removed_indices = torch.cat((indices[:N_removed], indices[-N_removed:]), dim=0)
+                sort_indices.append((key, removed_indices))
             
             if average_gradients:
                 sorted_grads, _ = torch.sort(torch.stack(grad_val[key], dim=0), dim=0)
@@ -189,12 +196,19 @@ def byzantine_robust_aggregate_tm(
                 state_dict = learner.model.state_dict()
                 target_state_dict[key].data += state_dict[key].data.clone()
 
+    # dump the indices of the sorted learners
+    if dump_path is not None:
+        with open(dump_path, 'wb') as f:
+            pickle.dump(sort_indices, f)
+        print("dumped indices to {}".format(dump_path))
+
 def byzantine_robust_aggregate_median(
         learners,
         target_learner,
         weights=None,
         average_params=True,
-        average_gradients=False):
+        average_gradients=False,
+        dump_path=None):
     """
     Compute the median of a list of learners_ensemble and store it into learner
 
@@ -224,6 +238,8 @@ def byzantine_robust_aggregate_median(
     param_val = defaultdict(list)
     grad_val = defaultdict(list)
 
+    sort_indices = list()
+
     for key in target_state_dict:
 
         if target_state_dict[key].data.dtype == torch.float32:
@@ -253,7 +269,8 @@ def byzantine_robust_aggregate_median(
                         )
 
             if average_params:
-                target_state_dict[key].data, _ = torch.median(torch.stack(param_val[key], dim=0), dim=0)
+                target_state_dict[key].data, indices = torch.median(torch.stack(param_val[key], dim=0), dim=0)
+                sort_indices.append((key, indices))
             
             if average_gradients:
                 target_state_dict[key].grad, _ = torch.median(torch.stack(grad_val[key], dim=0), dim=0)
@@ -264,6 +281,11 @@ def byzantine_robust_aggregate_median(
             for learner_id, learner in enumerate(learners):
                 state_dict = learner.model.state_dict()
                 target_state_dict[key].data += state_dict[key].data.clone()
+
+    # dump the indices of the sorted learners
+    if dump_path is not None:
+        with open(dump_path, 'wb') as f:
+            pickle.dump(sort_indices, f)
 
 def krum_agg(params, f=1):
     """
@@ -278,14 +300,15 @@ def krum_agg(params, f=1):
 
     k_closest_dist, _ = torch.topk(l2_dist, k=k+1, dim=1, largest=False)
     krum_idx = torch.argmin(k_closest_dist.sum(dim=1))
-    return params[krum_idx]
+    return params[krum_idx], krum_idx
 
 def byzantine_robust_aggregate_krum(
         learners,
         target_learner,
         weights=None,
         average_params=True,
-        average_gradients=False):
+        average_gradients=False,
+        dump_path=None):
     """
     Compute the krum of a list of learners_ensemble and store it into learner
 
@@ -308,6 +331,8 @@ def byzantine_robust_aggregate_krum(
     param_val = defaultdict(list)
     grad_val = defaultdict(list)
 
+    sort_indices = list()
+
     for key in target_state_dict:
 
         if target_state_dict[key].data.dtype == torch.float32:
@@ -337,12 +362,16 @@ def byzantine_robust_aggregate_krum(
                         )
 
             if average_params:
-                target_state_dict[key].data = krum_agg(param_val[key])
+                target_state_dict[key].data, krum_idx = krum_agg(param_val[key])
                 # sorted_params, _ = torch.sort(torch.stack(param_val[key], dim=0), dim=0)
                 # target_state_dict[key].data = torch.mean(sorted_params[N_removed:-N_removed], dim=0)
+
+                sort_indices.append((
+                    key, torch.full(param_val[key][0].shape, krum_idx)
+                ))
             
             if average_gradients:
-                target_state_dict[key].grad = krum_agg(grad_val[key])
+                target_state_dict[key].grad, krum_idx = krum_agg(grad_val[key])
                 # sorted_grads, _ = torch.sort(torch.stack(grad_val[key], dim=0), dim=0)
                 # target_state_dict[key].grad = torch.mean(sorted_grads[N_removed:-N_removed], dim=0)
 
@@ -352,6 +381,11 @@ def byzantine_robust_aggregate_krum(
             for learner_id, learner in enumerate(learners):
                 state_dict = learner.model.state_dict()
                 target_state_dict[key].data += state_dict[key].data.clone()
+    
+    # dump the indices of the sorted learners
+    if dump_path is not None:
+        with open(dump_path, 'wb') as f:
+            pickle.dump(sort_indices, f)
 
 def partial_average(learners, average_learner, alpha):
     """

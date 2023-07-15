@@ -169,7 +169,8 @@ def dummy_aggregator(args_, num_user=80, random_sample=False):
             test_clients=test_clients,
             verbose=args_.verbose,
             seed=args_.seed,
-            aggregation_op=args_.aggregation_op
+            aggregation_op=args_.aggregation_op,
+            dump_path=args_.dump_path,
         )
 
     return aggregator, clients

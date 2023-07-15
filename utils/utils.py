@@ -443,6 +443,7 @@ def get_aggregator(
         verbose,
         seed=None,
         aggregation_op=None,
+        dump_path=None,
 ):
     """
     `personalized` corresponds to pFedMe
@@ -489,7 +490,8 @@ def get_aggregator(
             sampling_rate=sampling_rate,
             verbose=verbose,
             seed=seed,
-            aggregation_op=aggregation_op
+            aggregation_op=aggregation_op,
+            dump_path=dump_path,
         )
     elif aggregator_type == "personalized":
         return PersonalizedAggregator(
