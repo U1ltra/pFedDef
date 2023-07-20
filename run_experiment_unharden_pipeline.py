@@ -11,6 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 # Import General Libraries
 import os
+import pytz
 import argparse
 import torch
 import copy
@@ -18,6 +19,8 @@ import pickle
 import random
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
+from datetime import datetime
 from models import *
 
 # Import Transfer Attack
@@ -31,15 +34,30 @@ import numba
 
 
 if __name__ == "__main__":
-    exp_root_path = input("exp_root_path>>>>")
+    newYorkTz = pytz.timezone("America/New_York")
+    timeInNewYork = datetime.now(newYorkTz)
+    currentTimeInNewYork = timeInNewYork.strftime("%H:%M:%S")
+    print("The current time in New York is:", currentTimeInNewYork)
+
+    exp_root_path = input("exp_root_path>>>>\n")
     # exp_root_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/test"
 
     path_log = open(f"{exp_root_path}/path_log", mode="w")
     path_log.write(f"FedAvg\n")
 
     defense_mechanisms = ["trimmed_mean", "median", "krum"] # "bulyan"
-    exp_names = [f"defense_{defense_mechanisms[i]}" for i in range(len(defense_mechanisms))]
+    global_model_fractions = [0.01, 0.05, 0.1]
+    params = []
+    for defense in defense_mechanisms:
+        for global_model_fraction in global_model_fractions:
+            params.append((defense, global_model_fraction))
+
+    exp_names = [f"def_{para[0]}_frac{para[1]}" for para in params]
     G_val = [0.4] * len(exp_names)
+
+    # print all experiment names
+    for exp_name in exp_names:
+        print(exp_name)
 
     torch.manual_seed(42)
 
@@ -73,8 +91,9 @@ if __name__ == "__main__":
         args_.logs_root = f"{exp_root_path}/{exp_names[itt]}/logs"
         args_.save_path = f"{exp_root_path}/{exp_names[itt]}"
         args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline/atk_start/weights"  # load the model from the 150 FAT epoch
+        # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline_unhard_portions/unharden_portion0.4/before_replace/weights"  # load the model from the 150 FAT epoch
         args_.validation = False
-        args_.aggregation_op = defense_mechanisms[itt]
+        args_.aggregation_op = params[itt][0]
         args_.save_interval = 5
         args_.eval_train = False
         args_.synthetic_train_portion = None
@@ -109,6 +128,8 @@ if __name__ == "__main__":
         args_adv.synthetic_train_portion = 1.0 # the portion of the synthetic data in proportion to the original dataset
         args_adv.unharden_source = "orig" # the source of the unharden data (orig, synthetic, or orig+synthetic)
         args_adv.data_portions = (0.0, 0.0, 0.0) # portions of orig, synthetic, and unharden data in final training dataset, sum smaller than 3.0 (orig, synthetic, or unharden)
+        args_.aggregation_op = None
+
         adv_aggregator, adv_clients = dummy_aggregator(args_adv, args_adv.num_clients, random_sample=False)
 
         args_adv.unharden_start_round = 0
@@ -128,21 +149,21 @@ if __name__ == "__main__":
         adv_aggregator.set_atk_params(args_adv.adv_params)
 
 
-        path_log.write(f"{exp_root_path}/{exp_names[itt]}/atk_start/weights\n")
+        # path_log.write(f"{exp_root_path}/{exp_names[itt]}/atk_start/weights\n")
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/unharden/weights\n")
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/before_replace/weights\n")
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/replace/weights\n")
-        if args_.eval_train and args_adv.save_interval is not None:
-            for i in range(0, args_.n_rounds, args_.save_interval):
-                path_log.write(
-                    f"{exp_root_path}/{exp_names[itt]}/FAT_train/weights/gt{i}\n"
-                )
-            for i in range(
-                args_adv.unharden_start_round + 5, args_.n_rounds, args_.save_interval
-            ):
-                path_log.write(
-                    f"{exp_root_path}/{exp_names[itt]}/unharden_train/weights/gt{i}\n"
-                )
+        # if args_.eval_train and args_adv.save_interval is not None:
+        #     for i in range(0, args_.n_rounds, args_.save_interval):
+        #         path_log.write(
+        #             f"{exp_root_path}/{exp_names[itt]}/FAT_train/weights/gt{i}\n"
+        #         )
+        #     for i in range(
+        #         args_adv.unharden_start_round + 5, args_.n_rounds, args_.save_interval
+        #     ):
+        #         path_log.write(
+        #             f"{exp_root_path}/{exp_names[itt]}/unharden_train/weights/gt{i}\n"
+        #         )
 
         # Train the model
         print("Training..")
@@ -161,7 +182,7 @@ if __name__ == "__main__":
                 adv_aggregator.load_state(save_root)
                 adv_aggregator.update_clients()
 
-            elif current_round == args_.n_rounds - 1:
+            if current_round == args_.n_rounds - 1:
                 save_root = os.path.join(args_.save_path, "before_replace/weights")
                 print(
                     f"Epoch {current_round} | Saving model before replacement to {save_root}"
@@ -181,6 +202,7 @@ if __name__ == "__main__":
                         "replacement",
                         args_.n_rounds - args_adv.atk_rounds,
                         os.path.join(save_root, f"chkpts_0.pt"),
+                        global_model_fraction=0.0,
                     )
 
             # If statement catching every Q rounds -- update dataset
@@ -221,7 +243,7 @@ if __name__ == "__main__":
 
             # assume that the adversaries cannot finish the current round faster than the global FL clients
             if current_round >= args_adv.unharden_start_round:
-                adv_aggregator.mix()
+                adv_aggregator.mix(aggregator.global_learners_ensemble, params[itt][1])
                 if (
                     args_.save_interval is not None
                     and current_round % args_.save_interval == 0
@@ -245,8 +267,19 @@ if __name__ == "__main__":
 
         save_arg_log(f_path=args_.logs_root, args=args_, exp_name="args")
         save_arg_log(f_path=args_adv.logs_root, args=args_adv, exp_name="args_adv")
+        np.save(
+            f"{exp_root_path}/{exp_names[itt]}/client_dist_to_prev_gt_in_each_round.npy", 
+            np.array(
+                aggregator.client_dist_to_prev_gt_in_each_round
+            )
+        )
 
         del args_, aggregator, clients
         torch.cuda.empty_cache()
 
     path_log.close()
+
+    newYorkTz = pytz.timezone("America/New_York")
+    timeInNewYork = datetime.now(newYorkTz)
+    currentTimeInNewYork = timeInNewYork.strftime("%H:%M:%S")
+    print("The current time in New York is:", currentTimeInNewYork)

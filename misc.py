@@ -251,27 +251,38 @@ def early_replace_updates():
             print(f"| {epoch:<10} | {i:<10} | {diff:9.3f} |")
 
 def pipeline_results():
-    base_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_def/defense_median"
-    stage_names = ["atk_start", "unharden", "before_replace", "replace"]
-    stage_paths = [f"{base_path}/{name}/weights/eval" for name in stage_names]
+    defense_mechanisms = ["trimmed_mean", "median", "krum"] # "bulyan"
+    global_model_fractions = [0.01, 0.05, 0.1]
+    params = []
+    for defense in defense_mechanisms:
+        for global_model_fraction in global_model_fractions:
+            params.append((defense, global_model_fraction))
 
-    # train_names = ["FAT_train", "unharden_train"]
-    # for i in range(0, 50, 5):
-    #     stage_paths.append(f"{base_path}/{train_names[0]}/weights/gt{i}/eval")
-    # for i in range(5, 50, 5):
-    #     stage_paths.append(f"{base_path}/{train_names[1]}/weights/gt{i}/eval")
-    
-    # stage_names.extend(range(0, 50, 5))
-    # stage_names.extend(range(5, 50, 5))
+    for param in params:
+        defense, global_model_fraction = param
+        print(f"\n--------------------------{defense} {global_model_fraction}--------------------------")
 
-    placeHolder1 = '-' * 10
-    print(f"| {placeHolder1} | {placeHolder1} | {placeHolder1}|")
-    for i, stage_path in enumerate(stage_paths):
-        acc_path = f"{stage_path}/all_acc.npy"
-        adv_acc_path = f"{stage_path}/all_adv_acc.npy"
-        acc = np.load(acc_path)
-        adv_acc = np.load(adv_acc_path)
-        print(f"| {stage_names[i]:<10} | {np.sum(acc) / (acc.shape[0] * acc.shape[1]) * 100:9.3f} | {np.sum(adv_acc) / (adv_acc.shape[0] * adv_acc.shape[1]) * 100:9.3f} |")
+        base_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_global_weight_consistent/def_{defense}_frac{global_model_fraction}"
+        stage_names = ["unharden", "before_replace", "replace"] # "atk_start", "unharden", "before_replace", "replace"
+        stage_paths = [f"{base_path}/{name}/weights/eval" for name in stage_names]
+
+        # train_names = ["FAT_train", "unharden_train"]
+        # for i in range(0, 50, 5):
+        #     stage_paths.append(f"{base_path}/{train_names[0]}/weights/gt{i}/eval")
+        # for i in range(5, 50, 5):
+        #     stage_paths.append(f"{base_path}/{train_names[1]}/weights/gt{i}/eval")
+        
+        # stage_names.extend(range(0, 50, 5))
+        # stage_names.extend(range(5, 50, 5))
+
+        placeHolder1 = '-' * 10
+        print(f"| {placeHolder1} | {placeHolder1} | {placeHolder1}|")
+        for i, stage_path in enumerate(stage_paths):
+            acc_path = f"{stage_path}/all_acc.npy"
+            adv_acc_path = f"{stage_path}/all_adv_acc.npy"
+            acc = np.load(acc_path)
+            adv_acc = np.load(adv_acc_path)
+            print(f"| {stage_names[i]:<10} | {np.sum(acc) / (acc.shape[0] * acc.shape[1]) * 100:9.3f} | {np.sum(adv_acc) / (adv_acc.shape[0] * adv_acc.shape[1]) * 100:9.3f} |")
 
 def removed_indices():
     defense = "krum" # "median", "trimmed_mean", "krum"
@@ -346,7 +357,7 @@ def removed_indices():
     # save plot
     plt.savefig(f"/home/ubuntu/Documents/jiarui/pFedDef/Evaluation/round49.png")
 
-# pipeline_results()
-removed_indices()
+pipeline_results()
+# removed_indices()
 
 

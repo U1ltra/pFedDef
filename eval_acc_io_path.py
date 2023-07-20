@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 
 import sys
+import pytz
+from datetime import datetime
 
 # Import FedEM based Libraries
 from utils.utils import *
@@ -24,6 +26,11 @@ from transfer_attacks.Transferer import *
 from transfer_attacks.Args import *
 from transfer_attacks.TA_utils import *
 from transfer_attacks.Boundary_Transferer import *
+
+newYorkTz = pytz.timezone("America/New_York")
+timeInNewYork = datetime.now(newYorkTz)
+currentTimeInNewYork = timeInNewYork.strftime("%H:%M:%S")
+print("The current time in New York is:", currentTimeInNewYork)
 
 base_path = input("Enter the root path where path_log file exists >>>")
 print(base_path)
@@ -302,3 +309,9 @@ for f_path in paths[1:]:
         else:
             np.save(f"{store_eval_path}/all_acc.npy", orig_acc)
             np.save(f"{store_eval_path}/all_adv_acc.npy", adv_acc)
+
+
+newYorkTz = pytz.timezone("America/New_York")
+timeInNewYork = datetime.now(newYorkTz)
+currentTimeInNewYork = timeInNewYork.strftime("%H:%M:%S")
+print("The current time in New York is:", currentTimeInNewYork)
