@@ -706,7 +706,27 @@ class UnhardenAggregator(CentralizedAggregator):
         self.step_size = atk_params["step_size"]
         self.atk_params = atk_params["atk_params"]
 
-    def mix(self):
+    def weight_projection(self, global_model, global_frac):
+        """
+        Project the global model to the local model with the same weights as the global model
+        """
+        print(f"weight projection with global frac {global_frac}")
+        for client in self.clients:
+            for learner_id, learner in enumerate(client.learners_ensemble):
+                learner_dict = learner.model.state_dict()
+                global_dict = global_model[learner_id].model.state_dict()
+
+                for key in learner_dict:
+                    if learner_dict[key].data.dtype == torch.float32:       # do not implicitly convert int to float, which will cause aggregation problem
+                        learner_dict[key].data = learner_dict[key].data.clone() * (1-global_frac) + global_dict[key].data.clone() * global_frac
+                    else:
+                        # do not change the int64 type weights
+                        pass
+                
+                learner.model.load_state_dict(learner_dict)
+
+    
+    def mix(self, global_model, global_frac):
         self.gen_unharden_samples()
         self.sample_clients()
 
@@ -714,12 +734,14 @@ class UnhardenAggregator(CentralizedAggregator):
             print(f"Client {idx} has {client.n_train_samples} samples")
             client.step()
 
+        self.weight_projection(global_model, global_frac)
+
         for learner_id, learner in enumerate(self.global_learners_ensemble):
             learners = [client.learners_ensemble[learner_id] for client in self.clients]
             if self.aggregation_op is None:
                 average_learners(learners, learner, weights=self.clients_weights)
-            elif self.aggregation_op == "trimmed_mean":
-                byzantine_robust_aggregate_tm(learners, learner, beta=0.05)
+            else:
+                raise ValueError("Unharden aggregation op not supported")
 
         self.update_clients()
         self.c_round += 1
