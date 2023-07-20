@@ -89,12 +89,14 @@ class Learner:
         replace_model_path = None,
         backdoor_path = None,
         backdoor_loss_threshold = None,
+        global_model_fraction = None,
     ):
         # self.criterion = ...    # alpha * (L_main + L_backdoor) + (1-alpha) * L_anomoly
         self.malicious = True
         self.attack = attack
         self.factor = factor
         self.atk_round = atk_round
+        self.global_model_fraction = global_model_fraction
 
         if backdoor_path != None:
             self.backdoor_loss_threshold = backdoor_loss_threshold
@@ -113,6 +115,7 @@ class Learner:
             assert replace_model_path != None
             self.replace_model_path = replace_model_path
             print(f"setup attack {attack} >>> {replace_model_path}")
+            print("global model fraction: ", self.global_model_fraction)
 
             self.replace_model = copy.deepcopy(self.model)
             self.replace_model.load_state_dict(
@@ -186,12 +189,23 @@ class Learner:
             buf[key] = buf[key] * (self.factor - 1)     
 
         malicious_state = self.replace_model.state_dict(keep_vars=True)
-        for key in malicious_state:
+        target_state = copy.deepcopy(malicious_state)
+        
+        if self.global_model_fraction != 0.0:
+            for key in target_state:
+                if original_state[key].data.dtype == torch.float32:       # do not implicitly convert int to float, which will cause aggregation problem
+                    target_state[key].data = target_state[key].data.clone() * (1-self.global_model_fraction) + original_state[key].data.clone() * self.global_model_fraction
+                else:
+                    # do not change the int64 type weights
+                    pass
+                
+
+        for key in target_state:
             if original_state[key].data.dtype == torch.float32:       # do not implicitly convert int to float, which will cause aggregation problem
-                temp = malicious_state[key].data.clone() * self.factor
+                temp = target_state[key].data.clone() * self.factor
                 original_state[key].data = temp - buf[key]
             else:
-                original_state[key].data = malicious_state[key].data.clone()
+                original_state[key].data = target_state[key].data.clone()
 
         return
     

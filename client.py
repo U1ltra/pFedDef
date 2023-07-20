@@ -107,14 +107,16 @@ class Client(object):
         factor = None, 
         attack = None, 
         atk_round = None,
-        replace_model_path = None
+        replace_model_path = None,
+        global_model_fraction = None,
     ):
         for learner in self.learners_ensemble:
             learner.turn_malicious(
                 factor = factor, 
                 attack = attack, 
                 atk_round = atk_round,
-                replace_model_path = replace_model_path
+                replace_model_path = replace_model_path,
+                global_model_fraction = global_model_fraction,
             )
         
         return
