@@ -692,6 +692,8 @@ class UnhardenAggregator(CentralizedAggregator):
             **kwargs,
         )
 
+        self.weight_dist_to_global_model = []
+
     def set_unharden_portion(self, portion):
         self.unharden_portion = portion
         for client in self.clients:
@@ -706,7 +708,7 @@ class UnhardenAggregator(CentralizedAggregator):
         self.step_size = atk_params["step_size"]
         self.atk_params = atk_params["atk_params"]
 
-    def weight_projection(self, global_model, global_frac):
+    def weighted_avg(self, global_model, global_frac):
         """
         Project the global model to the local model with the same weights as the global model
         """
@@ -724,17 +726,67 @@ class UnhardenAggregator(CentralizedAggregator):
                         pass
                 
                 learner.model.load_state_dict(learner_dict)
-
     
-    def mix(self, global_model, global_frac):
+    def weight_projection(self, global_model, epsilon, norm_type):
+        """
+        Projected gradient descent on model weights
+        """
+        print(f"weight projection with epsilon {epsilon} and norm type {norm_type}")
+        delta_ranges = [dict() for _ in range(len(self.clients))]
+
+        for client_idx, client in enumerate(self.clients):
+            for learner_id, learner in enumerate(client.learners_ensemble):
+                learner_dict = learner.model.state_dict()
+                global_dict = global_model[learner_id].model.state_dict()
+
+                for key in learner_dict:
+                    if learner_dict[key].data.dtype == torch.float32:       # do not implicitly convert int to float, which will cause aggregation problem
+                        adv_weight = learner_dict[key].data.clone()
+                        benign_weight = global_dict[key].data.clone() 
+
+                        if norm_type == "inf":
+                            benign_weight = torch.max(torch.min(benign_weight + epsilon, adv_weight), benign_weight - epsilon)
+                            learner_dict[key].data = benign_weight
+                            delta_ranges[client_idx][key] = (- epsilon, epsilon)
+
+                        else:
+                            delta = adv_weight - benign_weight
+                            delta_norm = torch.norm(delta, norm_type, keepdim=True)
+                            delta = delta / delta_norm * epsilon
+
+                            learner_dict[key].data = benign_weight + delta
+
+                            delta_ranges[client_idx][key] = (delta_norm.min(), delta_norm.max()) # TODO: what if there are multiple learners 
+
+                    else:
+                        # do not change the int64 type weights
+                        pass
+                
+                learner.model.load_state_dict(learner_dict)
+
+        self.weight_dist_to_global_model.append(delta_ranges)
+    
+    def mix(self, unharden_type, unharden_params):
         self.gen_unharden_samples()
         self.sample_clients()
 
         for idx, client in enumerate(self.clients):
-            print(f"Client {idx} has {client.n_train_samples} samples")
             client.step()
 
-        self.weight_projection(global_model, global_frac)
+        print(f"unharden type: {unharden_type}", flush=True)
+        if unharden_type == "avg":
+            global_model = unharden_params["global_model"]
+            global_frac = unharden_params["global_frac"]
+            self.weighted_avg(global_model, global_frac)
+        elif unharden_type == "proj":
+            global_model = unharden_params["global_model"]
+            epsilon = unharden_params["epsilon"]
+            norm_type = unharden_params["norm_type"]
+            self.weight_projection(global_model, epsilon, norm_type)
+        elif unharden_type == None:
+            pass
+        else:
+            raise ValueError("Unharden type not supported")
 
         for learner_id, learner in enumerate(self.global_learners_ensemble):
             learners = [client.learners_ensemble[learner_id] for client in self.clients]
