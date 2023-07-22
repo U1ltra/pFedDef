@@ -180,8 +180,6 @@ class Learner:
         return loss.detach()
 
     def make_replacement(self):
-        print("making replacement!!!")
-
         buf = dict()
         original_state = self.model.state_dict(keep_vars=True)
         for key in original_state:
@@ -324,11 +322,6 @@ class Learner:
 
         if self.attack == "replacement" and self.round_cnt >= self.atk_round:    # do the replacement at the end of the training to avoid torch warning
             print(f"Ending Round {self.round_cnt} >>> Performing Replacement")
-            print(self.attack)
-            print(self.round_cnt)
-            print(self.atk_round)
-            print(self.factor)
-            # print(f"Malicious Model {self.replace_model_path}")
             self.make_replacement()
 
         self.round_cnt+=1

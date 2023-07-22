@@ -899,13 +899,8 @@ class Unharden_Client(Client):
             return
         
         # Build synthetic data
-        print("Building synthetic data", self.synthetic_train_portion)
         self.train_iterator.dataset.gen_synthetic_data(self.synthetic_train_portion)
-        print("size of data (synthetic): ", self.train_iterator.dataset.data.shape)
-        print("size of targets (synthetic): ", self.train_iterator.dataset.targets.shape)
         self.train_iterator.dataset.set_data("synthetic")
-        print("size of data (set_data): ", self.train_iterator.dataset.data.shape)
-        print("size of targets (set_data): ", self.train_iterator.dataset.targets.shape)
 
         dataloader = self.gen_customdataloader(self.train_iterator)
         # self.synthetic_data = self.train_iterator.dataset.synthetic_data
@@ -914,30 +909,22 @@ class Unharden_Client(Client):
         self.adv_nn.synthetize(self.synthetic_data.cuda())
         self.synthetic_target = self.adv_nn.y_syn
         self.train_iterator.dataset.set_synthetic_targets(self.synthetic_target.cpu())
-        print("size of data (set_synthetic_targets): ", self.train_iterator.dataset.data.shape)
-        print("size of targets (set_synthetic_targets): ", self.train_iterator.dataset.targets.shape)
         
 
     def build_unharden_data(self):
         # Build unharden data
-        print("Building unharden data from ", self.unharden_source)
         self.train_iterator.dataset.set_data(self.unharden_source)
 
         x_adv, y_adv = self.generate_adversarial_data()
         self.unharden_data = x_adv
         self.unharden_target = y_adv
         self.train_iterator.dataset.set_unharden(self.unharden_data.cpu(), self.unharden_target.cpu())
-        print("size of data (set_unharden): ", self.train_iterator.dataset.data.shape)
-        print("size of targets (set_unharden): ", self.train_iterator.dataset.targets.shape)
 
         self.train_iterator.dataset.set_portions(
             orig_portion = self.poritons_set[0],
             synthetic_portion = self.poritons_set[1],
             unharden_portion = self.poritons_set[2]
         )
-        print("size of data (set_portions): ", self.train_iterator.dataset.data.shape)
-        print("size of targets (set_portions): ", self.train_iterator.dataset.targets.shape)
-
 
     def set_adv_params(self, adv_proportion = 0, atk_params = None):
         self.adv_proportion = adv_proportion
@@ -1009,8 +996,6 @@ class Unharden_Client(Client):
     def assign_advdataset(self):
          # Flush current used dataset with original
         self.train_iterator = deepcopy(self.og_dataloader)
-        print("size of train_iterator data: ", self.train_iterator.dataset.data.shape)
-        print("size of train_iterator target: ", self.train_iterator.dataset.targets.shape)
 
         self.build_synthetic_data()
         self.build_unharden_data()

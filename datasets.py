@@ -124,8 +124,6 @@ class SyntheticDataset(Dataset):
         self.orig_sample = np.random.choice(len(self.orig_data), self.orig_size, replace=False)
         self.data = self.orig_data[self.orig_sample]
         self.targets = self.orig_targets[self.orig_sample]
-        print("self.data.shape", self.data.shape)
-        print("self.targets.shape", self.targets.shape)
 
         if self.synthetic_targets is None:
             self.synthetic_sample = np.array([])
@@ -134,8 +132,6 @@ class SyntheticDataset(Dataset):
             self.synthetic_sample = np.random.choice(len(self.synthetic_data), self.synthetic_size, replace=False)
             self.data = torch.cat([self.data, self.synthetic_data[self.synthetic_sample]], dim=0)
             self.targets = torch.cat([self.targets, self.synthetic_targets[self.synthetic_sample]], dim=0)
-        print("self.data.shape", self.data.shape)
-        print("self.targets.shape", self.targets.shape)
 
         if self.unharden_targets is None:
             self.unharden_sample = np.array([])
@@ -144,8 +140,6 @@ class SyntheticDataset(Dataset):
             self.unharden_sample = np.random.choice(len(self.unharden_data), self.unharden_size, replace=False)
             self.data = torch.cat([self.data, self.unharden_data[self.unharden_sample]], dim=0)
             self.targets = torch.cat([self.targets, self.unharden_targets[self.unharden_sample]], dim=0)
-        print("self.data.shape", self.data.shape)
-        print("self.targets.shape", self.targets.shape)
 
         assert len(self.data) == len(self.targets), "data and targets must have the same length"
         assert len(self.data) <= self.init_size, "data must be smaller than the total size when the dataset object is initialized"
