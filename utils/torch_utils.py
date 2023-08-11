@@ -287,6 +287,63 @@ def byzantine_robust_aggregate_median(
         with open(dump_path, 'wb') as f:
             pickle.dump(sort_indices, f)
 
+def calculate_l2_norm_difference(model1, model2):
+    difference = 0.0
+    for param1, param2 in zip(model1.parameters(), model2.parameters()):
+        difference += torch.norm(param1 - param2, p=2)
+    return difference
+
+def byzantine_robust_aggregate_krum_modelwise(
+        f,
+        learners,
+        target_learner,
+        weights=None,
+        average_params=True,
+        average_gradients=False,
+        dump_path=None):
+    """
+    Compute the krum aggregation.
+
+    :param f: top k - f - 2 nearest learners are selected
+    :param learners:
+    :type learners: List[Learner]
+    :param target_learner:
+    :type target_learner: Learner
+    :param weights: tensor of the same size as learners_ensemble, having values between 0 and 1, and summing to 1,
+                    if None, uniform learners_weights are used
+    :param average_params: if set to true the parameters are averaged; default is True
+    :param average_gradients: if set to true the gradient are also averaged; default is False
+    :type weights: torch.Tensor
+    """
+
+    # calculate the l2 norm difference between each pair of learners 
+    N = len(learners)
+    l2_norm_diff = np.zeros((N, N))
+    for i in range(N):
+        for j in range(N):
+            if i != j and l2_norm_diff[i, j] == 0:
+                l2_norm_diff[i, j] = calculate_l2_norm_difference(learners[i].model, learners[j].model)
+                l2_norm_diff[j, i] = l2_norm_diff[i, j]
+    
+    # find the k closest learners
+    k = N - f - 2
+    k_closest_dist = np.zeros(N)
+    for i in range(N):
+        k_closest_dist[i] = np.sum(np.sort(l2_norm_diff[i])[:k+1])
+    krum_idx = np.argmin(k_closest_dist)
+    
+    # update the target learner
+    copy_model(target_learner.model, learners[krum_idx].model)
+
+    sort_indices = list()
+    target_dict = target_learner.model.state_dict()
+    for key in target_learner.model.state_dict():
+        if target_learner.model.state_dict()[key].data.dtype == torch.float32:
+            sort_indices.append((key, torch.full(target_dict[key].shape, krum_idx)))            
+    if dump_path is not None:
+        with open(dump_path, 'wb') as f:
+            pickle.dump(sort_indices, f)
+
 def krum_agg(params, f=1):
     """
     Compute the krum aggregation.
