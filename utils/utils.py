@@ -600,4 +600,12 @@ def save_arg_log(f_path, args, exp_name):
     )
     f.close()
 
-
+def diff_dict(model1, model2):
+    """
+    This function calculates the difference between two models' parameters and 
+    return a model dictionary with the difference
+    """
+    model_diff = {}
+    for key in model1.keys():
+        model_diff[key] = model1[key] - model2[key]
+    return model_diff
