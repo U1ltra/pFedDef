@@ -127,6 +127,8 @@ class Aggregator(ABC):
         # Custom -- added for Krum aggregation
         self.krum_mode = False
         self.exp_adv_nodes = 0
+        
+        self.client_updates_record = []
 
     @abstractmethod
     def mix(self):
@@ -409,6 +411,16 @@ class Aggregator(ABC):
 
         return
 
+    def record_client_updates(self):
+        self.client_updates_record = []
+        for client in self.clients:
+            model_diff = {}
+            model1 = client.learners_ensemble[0].model.state_dict()
+            model2 = self.global_learners_ensemble[0].model.state_dict()
+            for key in model1.keys():
+                model_diff[key] = model1[key] - model2[key]
+            self.client_updates_record.append(model_diff)
+
 
 class NoCommunicationAggregator(Aggregator):
     r"""Clients do not communicate. Each client work locally"""
@@ -558,6 +570,7 @@ class CentralizedAggregator(Aggregator):
         for client in self.sampled_clients:
             client.step()
 
+        self.record_client_updates()
         self.client_dist_to_prev_gt_in_each_round.append(
             self.all_clients_dist_to_global()
         )
@@ -595,6 +608,16 @@ class CentralizedAggregator(Aggregator):
                     learner, 
                     dump_path=os.path.join(self.dump_path, f"round{self.c_round}_krum.pkl")
                 )
+            elif self.aggregation_op == 'krum_modelwise':
+                byzantine_robust_aggregate_krum_modelwise(
+                    1,
+                    learners,
+                    learner,
+                    dump_path=os.path.join(self.dump_path, f"round{self.c_round}_krum_modelwise.pkl")
+                )
+            else:
+                raise NotImplementedError
+
 
         # assign the updated model to all clients
         self.update_clients()
@@ -755,7 +778,6 @@ class UnhardenAggregator(CentralizedAggregator):
                             delta = delta / delta_norm * epsilon
 
                             learner_dict[key].data = benign_weight + delta
-
                             delta_ranges[client_idx][key] = (delta_norm.min(), delta_norm.max()) # TODO: what if there are multiple learners 
 
                     else:
@@ -787,7 +809,7 @@ class UnhardenAggregator(CentralizedAggregator):
             pass
         else:
             raise ValueError("Unharden type not supported")
-
+        
         for learner_id, learner in enumerate(self.global_learners_ensemble):
             learners = [client.learners_ensemble[learner_id] for client in self.clients]
             if self.aggregation_op is None:
