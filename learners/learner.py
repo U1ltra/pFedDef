@@ -2,7 +2,7 @@ import torch
 import copy
 # from utils.utils import get_loader
 # from dataset import get_cifar10
-
+import torch.nn.functional as F
 
 class Learner:
     """
@@ -79,6 +79,10 @@ class Learner:
         self.replace_model = None
         self.replace_model_path = None
         self.stop_learn = False
+
+        self.global_dist_loss_mode = False
+        self.global_model = None
+        self.global_dist_loss_weight = 0.0
 
     def turn_malicious(
         self, 
@@ -250,6 +254,18 @@ class Learner:
             self.lr_scheduler.step()
 
         return loss.detach(), metric.detach()
+    
+    def parameter_distance_loss(self, old_model, new_model):
+        old_params = torch.cat([p.view(-1) for p in old_model.parameters()])
+        new_params = torch.cat([p.view(-1) for p in new_model.parameters()])
+
+        distance = F.mse_loss(old_params, new_params)
+        return distance
+
+    def global_dist_loss(self, mode=True, global_model=None, weight=1.0):
+        self.global_dist_loss_mode = mode
+        self.global_model = global_model
+        self.global_dist_loss_weight = weight
 
     def fit_epoch(self, iterator, weights=None):
         """
@@ -269,12 +285,6 @@ class Learner:
         if self.stop_learn:
             print("learning stopped!!!\n")
             return
-
-        buf = dict()
-        if self.attack == "boosting" or "backdoor" or "replacement":
-            original_state = self.model.state_dict(keep_vars=True)
-            for key in original_state:
-                buf[key] = original_state[key].data.clone()
 
         self.model.train()
 
@@ -302,23 +312,20 @@ class Learner:
             if weights is not None:
                 weights = weights.to(self.device)
                 loss = (loss_vec.T @ weights[indices]) / loss_vec.size(0)
+
             else:
                 loss = loss_vec.mean()
+            
+            if self.global_dist_loss_mode:
+                distance_loss = self.parameter_distance_loss(self.global_model, self.model)
+                loss = loss * (1 - self.global_dist_loss_weight) + distance_loss * self.global_dist_loss_weight
+        
             loss.backward()
 
             self.optimizer.step()
 
             global_loss += loss.detach() * loss_vec.size(0)
             global_metric += self.metric(y_pred, y).detach()
-
-            # if loss < self.backdoor_loss_threshold:
-            #     break
-
-        # if self.attack == "boosting" or self.attack == "backdoor":
-        #     new_state = self.model.state_dict(keep_vars=True)
-        #     for key in new_state:
-        #         diff = new_state[key].data.clone() - buf[key]
-        #         new_state[key].data += diff * (self.factor - 1)
 
         if self.attack == "replacement" and self.round_cnt >= self.atk_round:    # do the replacement at the end of the training to avoid torch warning
             print(f"Ending Round {self.round_cnt} >>> Performing Replacement")

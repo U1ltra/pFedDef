@@ -119,10 +119,13 @@ class Client(object):
                 global_model_fraction = global_model_fraction,
             )
         
-        return
     def change_status(self, status = False):
         for learner in self.learners_ensemble:
             learner.learner_status(status)
+    
+    def set_dist_loss(self, mode, global_model, weight):
+        for learner_idx, learner in enumerate(self.learners_ensemble):
+            learner.global_dist_loss(mode, global_model[learner_idx].model, weight)
 
 
     def get_next_batch(self):
