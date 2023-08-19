@@ -605,7 +605,10 @@ def diff_dict(model1, model2):
     This function calculates the difference between two models' parameters and 
     return a model dictionary with the difference
     """
+    dict1 = model1.model.state_dict()
+    dict2 = model2.model.state_dict()
+
     model_diff = {}
-    for key in model1.keys():
-        model_diff[key] = model1[key] - model2[key]
+    for key in dict1:
+        model_diff[key] = dict1[key] - dict2[key]
     return model_diff
