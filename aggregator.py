@@ -417,7 +417,7 @@ class Aggregator(ABC):
             model_diff = {}
             model1 = client.learners_ensemble[0].model.state_dict()
             model2 = self.global_learners_ensemble[0].model.state_dict()
-            for key in model1.keys():
+            for key in model1:
                 model_diff[key] = model1[key] - model2[key]
             self.client_updates_record.append(model_diff)
 
@@ -553,7 +553,7 @@ class CentralizedAggregator(Aggregator):
         if self.dump_path is not None:
             os.makedirs(self.dump_path, exist_ok=True)
 
-    def mix(self, replace=False):
+    def mix(self, replace=False, dump_flag=False):
         self.sample_clients()
 
         if replace:
@@ -590,30 +590,50 @@ class CentralizedAggregator(Aggregator):
             if self.aggregation_op is None:
                 average_learners(learners, learner, weights=self.clients_weights)
             elif self.aggregation_op == 'median':
+                dump_path = (
+                    os.path.join(self.dump_path, f"round{self.c_round}_median.pkl") 
+                    if dump_flag
+                    else None
+                )
                 byzantine_robust_aggregate_median(
                     learners, 
                     learner, 
-                    dump_path=os.path.join(self.dump_path, f"round{self.c_round}_median.pkl")
+                    dump_path=dump_path
                 )
             elif self.aggregation_op == 'trimmed_mean':
+                dump_path = (
+                    os.path.join(self.dump_path, f"round{self.c_round}_tm.pkl")
+                    if dump_flag
+                    else None
+                )
                 byzantine_robust_aggregate_tm(
                     learners, 
                     learner, 
                     beta=0.05, 
-                    dump_path=os.path.join(self.dump_path, f"round{self.c_round}_tm.pkl")
+                    dump_path=dump_path
                 )
             elif self.aggregation_op == 'krum':
+                dump_path = (
+                    os.path.join(self.dump_path, f"round{self.c_round}_krum.pkl")
+                    if dump_flag
+                    else None
+                )
                 byzantine_robust_aggregate_krum(
                     learners, 
                     learner, 
-                    dump_path=os.path.join(self.dump_path, f"round{self.c_round}_krum.pkl")
+                    dump_path=dump_path
                 )
             elif self.aggregation_op == 'krum_modelwise':
+                dump_path = (
+                    os.path.join(self.dump_path, f"round{self.c_round}_krum_modelwise.pkl")
+                    if dump_flag
+                    else None
+                )
                 byzantine_robust_aggregate_krum_modelwise(
                     1,
                     learners,
                     learner,
-                    dump_path=os.path.join(self.dump_path, f"round{self.c_round}_krum_modelwise.pkl")
+                    dump_path=dump_path
                 )
             else:
                 raise NotImplementedError
@@ -793,9 +813,14 @@ class UnhardenAggregator(CentralizedAggregator):
         self.sample_clients()
 
         for idx, client in enumerate(self.clients):
+            client.set_dist_loss(
+                unharden_params["dist_loss_mode"], 
+                unharden_params["global_model"], # global learner ensemble
+                unharden_params["dist_loss_weight"]
+            )
             client.step()
+        self.record_client_updates()
 
-        print(f"unharden type: {unharden_type}", flush=True)
         if unharden_type == "avg":
             global_model = unharden_params["global_model"]
             global_frac = unharden_params["global_frac"]
@@ -863,16 +888,13 @@ class UnhardenAggregator(CentralizedAggregator):
                 self.Ru,
                 self.step_size,
             )
-            print(f"adv agg Fu: {Fu}")
 
             # Assign proportion and attack params
             # Assign proportion and compute new dataset
             for i in range(self.n_clients):
-                print(f"Client {i} building {Fu[i]*100}% adv data")
                 self.clients[i].set_adv_params(Fu[i], self.atk_params)
                 self.clients[i].update_advnn()
                 self.clients[i].assign_advdataset()
-                print()
 
     def best_replace_scale(self):
         client_weights = np.load(
