@@ -200,7 +200,6 @@ def byzantine_robust_aggregate_tm(
     if dump_path is not None:
         with open(dump_path, 'wb') as f:
             pickle.dump(sort_indices, f)
-        print("dumped indices to {}".format(dump_path))
 
 def byzantine_robust_aggregate_median(
         learners,
