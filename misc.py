@@ -2,6 +2,8 @@ import os
 import torch
 import numpy as np
 import copy
+import matplotlib.pyplot as plt
+
 
 from transfer_attacks.Args import *
 from transfer_attacks.TA_utils import *
@@ -251,37 +253,41 @@ def early_replace_updates():
             print(f"| {epoch:<10} | {i:<10} | {diff:9.3f} |")
 
 def pipeline_results():
-    defense_mechanisms = ["trimmed_mean", "median",]
-    epsilons = [0.0, 0.1, 0.3]
+    defense_mechanisms = ["trimmed_mean", "median", "krum_modelwise"]
+    atk_clients = [5, 10, 20]
+    atk_rounds = [5, 10, 20]
     params = []
     for defense in defense_mechanisms:
-        for epsilon in epsilons:
-            params.append((defense, epsilon))
+        for atk_client in atk_clients:
+            for atk_round in atk_rounds:
+                params.append((defense, atk_client, atk_round))
+
 
     for param in params:
-        defense, epsilon = param
-        print(f"\n--------------------------{defense} {epsilon}--------------------------")
+        defense, atk_client, atk_round = param
+        print(f"\n--------------------------{defense} {atk_client} {atk_round}--------------------------")
 
-        base_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/def_baselines/def_{defense}"
-        base_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_constrain_and_scale/def_{defense}_weight_{epsilon}"
-        stage_names = ["unharden", "before_replace", "replace"] # "atk_start", "unharden", "before_replace", "replace"
+        base_path = f"/home/ubuntu/Documents/jiarui/experiments/multi_round_atk/atk_def_{defense}_atk_client_{atk_client}_atk_round_{atk_round}"
+        stage_names = ["before_replace", "replace"] # "atk_start", "unharden", "before_replace", "replace"
         stage_paths = [f"{base_path}/{name}/weights/eval" for name in stage_names]
-        # stage_paths = [f"{base_path}/weights/round_149/eval" for name in stage_names]
 
         train_names = ["FAT_train", "unharden_train"]
-        for i in range(0, 21, 10):
+        for i in range(0, atk_round, 5):
             stage_paths.append(f"{base_path}/{train_names[0]}/weights/gt{i}/eval")
-        for i in range(0, 21, 10):
-            stage_paths.append(f"{base_path}/{train_names[1]}/weights/gt{i}/eval")
+        # for i in range(0, 21, 10):
+        #     stage_paths.append(f"{base_path}/{train_names[1]}/weights/gt{i}/eval")
         
-        stage_names.extend(range(0, 21, 10))
-        stage_names.extend(range(0, 21, 10))
+        stage_names.extend(range(0, atk_round, 5))
+        # stage_names.extend(range(0, 21, 10))
 
         placeHolder1 = '-' * 10
-        print(f"| {placeHolder1} | {placeHolder1} | {placeHolder1}|")
+        print(f"| {placeHolder1} | {placeHolder1} | {placeHolder1} |")
         for i, stage_path in enumerate(stage_paths):
             acc_path = f"{stage_path}/all_acc.npy"
             adv_acc_path = f"{stage_path}/all_adv_acc.npy"
+            if not os.path.exists(acc_path):
+                print(f"not exist: {acc_path}")
+                continue
             acc = np.load(acc_path)
             adv_acc = np.load(adv_acc_path)
             print(f"| {stage_names[i]:<10} | {np.sum(acc) / (acc.shape[0] * acc.shape[1]) * 100:9.3f} | {np.sum(adv_acc) / (adv_acc.shape[0] * adv_acc.shape[1]) * 100:9.3f} |")
@@ -294,14 +300,13 @@ def cal_params_l2(model_dict):
     return total_params ** 0.5
 
 def experiments_loop():
-    defenses = ["trimmed_mean", "median",]
-    fracs = [0.0, 0.1, 0.3]
+    defenses = ["trimmed_mean", "median", "krum_modelwise"]
+    fracs = [1]
     params = []
     for defense in defenses:
         for frac in fracs:
             params.append((defense, frac))
-    round_list = [i for i in range(0, 30, 10)] + [29]    # normal rounds + last round
-    round_list = [0,1]
+    round_list = [i for i in range(0,2)] + [2]    # normal rounds + last round
     
     for param in params:
         defense, frac = param
@@ -311,10 +316,10 @@ def experiments_loop():
         # base_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_global_weight_consistent/def_{defense}_frac{frac}"
         # base_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_def2/def_{defense}"
         # base_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/test/def_trimmed_mean_weight_0.0"
-        base_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_constrain_and_scale/def_{defense}_weight_{frac}"
+        base_path = f"/home/ubuntu/Documents/jiarui/experiments/update_dist/boost_FAT/rep_def_{defense}_atk_client_{frac}"
 
-        # process_removed_indices(base_path, defense, abbrev, base_path.split('/')[-1], 40, 5, round_list)
-        process_model_difference(base_path, round_list)
+        process_removed_indices(base_path, defense, abbrev, base_path.split('/')[-1], 40, frac, round_list)
+        # process_model_difference(base_path, round_list)
         # process_updates(base_path, round_list)
 
 def process_removed_indices(base_path, defense, abbrev, id, client_num, atk_client_num, round_list):
@@ -322,13 +327,15 @@ def process_removed_indices(base_path, defense, abbrev, id, client_num, atk_clie
     atk_clients = torch.arange(0, atk_client_num)
     all_clients = torch.arange(0, client_num)
     total_params = 0
-    saved_or_removed = "saved" if defense == "median" or defense == "krum" else "removed"
+    saved_or_removed = "saved" if (defense == "median" or defense == "krum" or defense == "krum_modelwise") else "removed"
 
     normal_rounds = []
-    for i in round_list[:-1]:
-        if (i+1) % 5 == 0:
+    for idx_i, i in enumerate(round_list[:-1]):
+        if (idx_i+1) % 5 == 0:
             print(f"Working on round {i}")
         path = f"{base_path}/round{i}_{abbrev}.pkl"
+        if not os.path.exists(path):
+            continue
         with open(path, 'rb') as file:
             loaded_list = pickle.load(file)
         
@@ -340,7 +347,7 @@ def process_removed_indices(base_path, defense, abbrev, id, client_num, atk_clie
             unique_numbers = unique_numbers.cpu()
             counts = counts.cpu()
 
-            if defense == "median" or defense == "krum":
+            if defense == "median" or defense == "krum" or defense == "krum_modelwise":
                 saved_counts = torch.zeros(40, dtype=torch.long)
                 for unique_number, count in zip(unique_numbers, counts):
                     # add to other clients ececpt the current one 
@@ -359,21 +366,21 @@ def process_removed_indices(base_path, defense, abbrev, id, client_num, atk_clie
         normal_rounds.append(removed_counts)
 
     # avg counts
-    normal_rounds = torch.stack(normal_rounds).to(torch.float32)
-    avg_normal = normal_rounds.mean(dim=0) / total_params
-    # bar plot
-    import matplotlib.pyplot as plt
-    # new figure
-    plt.figure()
-    bars = plt.bar(torch.arange(1, 41), avg_normal, color='tab:blue')
-    plt.xlabel("Client ID")
-    plt.ylabel(f"Portion of {saved_or_removed} parameters")
-    plt.title(f"Portion of {saved_or_removed} parameters - {abbrev} defense (normal rounds)")
-    # for i in atk_clients:
-    #     bars[i].set_color('r')
-    plt.show()
-    # save plot
-    plt.savefig(f"/home/ubuntu/Documents/jiarui/pFedDef/Evaluation/plots/normal_rounds_{abbrev}_{id}.png")
+    if len(normal_rounds) != 0:
+        normal_rounds = torch.stack(normal_rounds).to(torch.float32)
+        avg_normal = normal_rounds.mean(dim=0) / total_params
+        # bar plot
+        # new figure
+        plt.figure()
+        bars = plt.bar(torch.arange(1, 41), avg_normal, color='tab:blue')
+        plt.xlabel("Client ID")
+        plt.ylabel(f"Portion of {saved_or_removed} parameters")
+        plt.title(f"Portion of {saved_or_removed} parameters - {abbrev} defense (normal rounds)")
+        for i in atk_clients:
+            bars[i].set_color('r')
+        plt.show()
+        # save plot
+        plt.savefig(f"/home/ubuntu/Documents/jiarui/pFedDef/Evaluation/plots/normal_rounds_{abbrev}_{id}.png")
 
 
     print(f"Working on round {round_list[-1]}")
@@ -389,18 +396,17 @@ def process_removed_indices(base_path, defense, abbrev, id, client_num, atk_clie
         unique_numbers = unique_numbers.cpu()
         counts = counts.cpu()
 
-        if defense == "median" or defense == "krum":
+        if defense == "median" or defense == "krum" or defense == "krum_modelwise":
             saved_counts = torch.zeros(40, dtype=torch.long)
             for unique_number, count in zip(unique_numbers, counts):
                 # removed_counts[all_clients[all_clients != unique_number]] += count
                 removed_counts[unique_number] += count
         elif defense == "trimmed_mean":
-            removed_counts[unique_numbers] += counts
-
+            removed_counts[unique_numbers] += counts    
     
     # bar plot
     plt.figure()
-    plt.bar(torch.arange(1, 41), removed_counts / total_params, color='tab:orange')
+    bars = plt.bar(torch.arange(1, 41), removed_counts / total_params, color='tab:orange')
     for i in atk_clients:
         bars[i].set_color('r')
     plt.xlabel("Client ID")
@@ -408,7 +414,8 @@ def process_removed_indices(base_path, defense, abbrev, id, client_num, atk_clie
     plt.title(f"Portion of {saved_or_removed} parameters - {abbrev} defense (atk round)")
     plt.show()
     # save plot
-    plt.savefig(f"/home/ubuntu/Documents/jiarui/pFedDef/Evaluation/plots/round49_{abbrev}_{id}.png")
+    plt.savefig(f"/home/ubuntu/Documents/jiarui/pFedDef/Evaluation/plots/round{round_list[-1]}_{abbrev}_{id}.png")
+    plt.close("all")
 
 def process_model_difference(base_path, round_list):
     diff_norms = []
@@ -458,17 +465,38 @@ def process_updates(base_path, round_list):
 
 
 def linux_command():
-    for frac in [0.0, 0.01, 0.05, 0.1, 0.3, 0.6, 1.0]:
-        base_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_global_weight_consistent/def_trimmed_mean_frac{frac}/dump"
-        rounds_set = [i for i in range(0, 50)]
-        round_save = [i for i in range(0, 50, 2)] + [49]
+    defenses = ["trimmed_mean", "median", "krum_modelwise"]
+    atk_clients = [5, 10]
+    atk_rounds = [5, 10, 20]
+    params = []
+    for defense in defenses:
+        for atk_num in atk_clients:
+            for atk_round in atk_rounds:
+                params.append((defense, atk_num, atk_round))
+    
+    for param in params:
+        defense, atk_num, atk_round = param
+        abbrev = "tm" if defense == "trimmed_mean" else defense
+
+        base_path = f"/home/ubuntu/Documents/jiarui/experiments/multi_round_atk/atk_def_{defense}_atk_client_{atk_num}_atk_round_{atk_round}/dump"
+        rounds_set = [i for i in range(0, atk_round+1)]
+        round_save = [i for i in range(0, atk_round, 5)] + [atk_round]
         to_remove = []
         for i in rounds_set:
             if i not in round_save:
                 to_remove.append(i)
 
         for i in to_remove:
-            command = f"rm {base_path}/round{i}_tm.pkl"
+            print("--------------------------")
+            command = f"rm -r {base_path}/round{i}_{abbrev}.pkl"
+            print(command)
+            os.system(command)
+
+            command = f"rm -r {base_path}/round{i}_model_diff.pkl"
+            print(command)
+            os.system(command)
+
+            command = f"rm -r {base_path}/round{i}_update.pkl"
             print(command)
             os.system(command)
 
@@ -495,3 +523,5 @@ def model_difference():
 pipeline_results()
 # markdown_table3()
 # experiments_loop()
+
+
