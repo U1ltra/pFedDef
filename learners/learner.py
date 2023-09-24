@@ -288,6 +288,9 @@ class Learner:
 
         self.model.train()
 
+        if self.attack == "boost":
+            orginal_state = copy.deepcopy(self.model.state_dict(keep_vars=True))
+
         global_loss = 0.
         global_metric = 0.
         n_samples = 0
@@ -330,6 +333,17 @@ class Learner:
         if self.attack == "replacement" and self.round_cnt >= self.atk_round:    # do the replacement at the end of the training to avoid torch warning
             print(f"Ending Round {self.round_cnt} >>> Performing Replacement")
             self.make_replacement()
+
+        if self.attack == "boost":
+            updated_state = copy.deepcopy(self.model.state_dict(keep_vars=True))
+            # boost the weights of the updated model
+            for key in updated_state:
+                if orginal_state[key].data.dtype == torch.float32:
+                    updated_state[key].data = (updated_state[key].data - orginal_state[key].data) * 50 + orginal_state[key].data
+                else:
+                    # do not change the int64 type weights
+                    pass
+            self.model.load_state_dict(updated_state)
 
         self.round_cnt+=1
 

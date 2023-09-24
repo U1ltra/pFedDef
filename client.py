@@ -1005,4 +1005,10 @@ class Unharden_Client(Client):
 
         self.train_loader = iter(self.train_iterator)
         return
+
+    def swap_dataset_labels(self, class_count, switch_pair: bool=True):
+
+        super().swap_dataset_labels(class_count, switch_pair)
+        self.og_dataloader = deepcopy(self.train_iterator)
+        print("data label swapped, set og_dataloader to new train_iterator")
         
