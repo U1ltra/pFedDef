@@ -896,11 +896,8 @@ class UnhardenAggregator(CentralizedAggregator):
                 self.clients[i].update_advnn()
                 self.clients[i].assign_advdataset()
 
-    def best_replace_scale(self):
-        client_weights = np.load(
-            "/home/ubuntu/Documents/jiarui/experiments/multi_atker/client_weights.npy"
-        )
-        best_scale = 1 / client_weights[0:self.n_clients].sum()
+    def best_replace_scale(self, global_clients_weights):
+        best_scale = 1 / global_clients_weights[0:self.n_clients].sum()
         return best_scale
     
 
