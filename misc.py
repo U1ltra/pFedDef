@@ -253,31 +253,35 @@ def early_replace_updates():
             print(f"| {epoch:<10} | {i:<10} | {diff:9.3f} |")
 
 def pipeline_results():
-    defense_mechanisms = ["trimmed_mean", "median", "krum_modelwise"]
-    atk_clients = [5, 10, 20]
-    atk_rounds = [5, 10, 20]
+    defense_mechanisms = [None]
+    atk_clients = [1]
+    atk_rounds = [0]
+    alpha = [0.3, 0.6, 0.9]
     params = []
     for defense in defense_mechanisms:
         for atk_client in atk_clients:
             for atk_round in atk_rounds:
-                params.append((defense, atk_client, atk_round))
+                for a in alpha:
+                    params.append((defense, atk_client, atk_round, a))
 
 
     for param in params:
-        defense, atk_client, atk_round = param
-        print(f"\n--------------------------{defense} {atk_client} {atk_round}--------------------------")
+        defense, atk_client, atk_round, a = param
+        print(f"\n--------------------------{defense} {atk_client} {atk_round} {a}--------------------------")
 
-        base_path = f"/home/ubuntu/Documents/jiarui/experiments/multi_round_atk/atk_def_{defense}_atk_client_{atk_client}_atk_round_{atk_round}"
-        stage_names = ["before_replace", "replace"] # "atk_start", "unharden", "before_replace", "replace"
+        base_path = f"/home/ubuntu/Documents/jiarui/experiments/verify_correlation2/def_{defense}_atk_client_{atk_client}_atk_round_{atk_round}_alpha_{a}"
+        stage_names = [] # "atk_start", "unharden", "before_replace", "replace"
         stage_paths = [f"{base_path}/{name}/weights/eval" for name in stage_names]
 
         train_names = ["FAT_train", "unharden_train"]
-        for i in range(0, atk_round, 5):
+        for i in range(0, 5):
             stage_paths.append(f"{base_path}/{train_names[0]}/weights/gt{i}/eval")
+        stage_paths.append(f"{base_path}/{train_names[0]}/weights/gt00/eval")
         # for i in range(0, 21, 10):
         #     stage_paths.append(f"{base_path}/{train_names[1]}/weights/gt{i}/eval")
         
-        stage_names.extend(range(0, atk_round, 5))
+        stage_names.extend(range(0, 5))
+        stage_names.extend("00")
         # stage_names.extend(range(0, 21, 10))
 
         placeHolder1 = '-' * 10
@@ -516,12 +520,59 @@ def model_difference():
         else:
             print(key, (model1[key] - model2[key]).sum())
 
+def cal_correlation():
+    def model_weighted_avg(dict1, dict2, alpha=0.5):
+        combined_dict = {}
+    
+        for key1, value1 in dict1.items():
+            if key1 in dict2:
+                value2 = dict2[key1]
+                combined_dict[key1] = alpha * value1 + (1 - alpha) * value2
+            else:
+                # Handle the case where the key is not present in both dictionaries
+                combined_dict[key1] = value1
+        return combined_dict
+    
+    benign_model_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/before_replace/weights"
+    atk_model_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/unharden/weights"
+    alpha = 0.6
 
+    benign_model = torch.load(f"{benign_model_path}/chkpts_0.pt")
+    atk_model = torch.load(f"{atk_model_path}/chkpts_0.pt")
+    atk_model = model_weighted_avg(benign_model, atk_model, alpha=alpha)
+
+    diffs_dict = {}
+    for key in benign_model:
+        if benign_model[key].data.dtype == torch.float32:
+            diffs_dict[key] = benign_model[key] - atk_model[key]
+        else:
+            diffs_dict[key] = benign_model[key]
+    
+    update_dump_path = f"/home/ubuntu/Documents/jiarui/experiments/verify_correlation_enable_FAT/def_None_atk_client_1_atk_round_0_alpha_{alpha}/dump"
+    with open(f"{update_dump_path}/round0_update.pkl", 'rb') as file:
+        load_updates = pickle.load(file)
+    global_updates = load_updates[0]
+
+    def flatten_parameters(model_dict):
+        flattened_params = []
+        for key, value in model_dict.items():
+            if benign_model[key].data.dtype == torch.float32:
+                if isinstance(value, torch.Tensor):
+                    value = value.cpu()
+                    flattened_params.extend(value.flatten().numpy())
+        return np.array(flattened_params)
+
+    for idx, update in enumerate(global_updates):
+        # calculate the correlation
+        update_flat = flatten_parameters(update)
+        diffs_flat = flatten_parameters(diffs_dict)
+        correlation = np.corrcoef(update_flat, diffs_flat)
+        print("", idx, " ", correlation[0,1])
 
 
 # removed_indices()
-pipeline_results()
+# pipeline_results()
 # markdown_table3()
 # experiments_loop()
-
+cal_correlation()
 
