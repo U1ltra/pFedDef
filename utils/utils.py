@@ -16,6 +16,9 @@ from torch.utils.data import DataLoader
 
 from tqdm import tqdm
 
+import pytz
+from datetime import datetime
+
 
 def get_data_dir(experiment_name):
     """
@@ -612,3 +615,11 @@ def diff_dict(model1, model2):
     for key in dict1:
         model_diff[key] = dict1[key] - dict2[key]
     return model_diff
+
+
+def print_current_time():
+    newYorkTz = pytz.timezone("America/New_York")
+    timeInNewYork = datetime.now(newYorkTz)
+    currentTimeInNewYork = timeInNewYork.strftime("%H:%M:%S")
+    print("The current time in New York is:", currentTimeInNewYork)
+    print("The current date in New York is:", timeInNewYork.date())

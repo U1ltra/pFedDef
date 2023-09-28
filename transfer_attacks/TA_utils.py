@@ -379,3 +379,20 @@ def load_client_data(clients, c_id, switch = False, mode = 'test'):
     dataloader = Custom_Dataloader(data_x, data_y)
     
     return dataloader
+
+def adv_training_configs(
+    args_, aggregator, G, num_h, Du, S, Ru, step_size,
+):
+    Whu = np.zeros([args_.num_clients, num_h])  # Hypothesis weight for each user
+    for i in range(args_.num_clients):
+        temp_client = aggregator.clients[i]
+        hyp_weights = temp_client.learners_ensemble.learners_weights
+        Whu[i] = hyp_weights
+
+    row_sums = Whu.sum(axis=1)
+    Whu = Whu / row_sums[:, np.newaxis]
+    Wh = np.sum(Whu, axis=0) / args_.num_clients
+
+    # Solve for adversarial ratio at every client
+    Fu = solve_proportions(G, args_.num_clients, num_h, Du, Whu, S, Ru, step_size)
+    return Fu
