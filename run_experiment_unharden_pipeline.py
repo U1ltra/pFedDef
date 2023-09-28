@@ -35,15 +35,16 @@ import numba
 
 def exp_config():
     defense_mechanisms = [None]
-    atk_client_num = [1]
-    atk_rounds = [0]
-    alphas = [0.3, 0.6, 0.9]    # alpha * benign_model + (1 - alpha) * atk_model
+    atk_client_num = [5]
+    atk_start_rounds = [200]
+    atk_rounds = [1]
+    # alphas = [0.3, 0.6, 0.9]    # alpha * benign_model + (1 - alpha) * atk_model
 
     for defense in defense_mechanisms:
         for atk_client in atk_client_num:
-            for atk_round in atk_rounds:
-                for alpha in alphas:
-                    yield defense, atk_client, atk_round, alpha
+            for atk_start in atk_start_rounds:
+                for atk_round in atk_rounds:
+                    yield defense, atk_client, atk_start, atk_round
 
 
 if __name__ == "__main__":
@@ -59,8 +60,8 @@ if __name__ == "__main__":
 
     torch.manual_seed(42)
 
-    for defense, atk_client, atk_round, alpha in exp_generator:
-        exp_name = f"def_{defense}_atk_client_{atk_client}_atk_round_{atk_round}_alpha_{alpha}"
+    for defense, atk_client, atk_start, atk_round in exp_generator:
+        exp_name = f"def_{defense}_atk_client_{atk_client}_atk_round_{atk_round}"
         exp_save_path = os.path.join(exp_root_path, exp_name)
         print(f"Running experiment: {exp_name}")
 
@@ -68,24 +69,24 @@ if __name__ == "__main__":
         args_ = Args()
         args_.method = "FedAvg_adv"  # Method of training
         args_.n_learners = 1  # Number of hypotheses assumed in system
-        args_.n_rounds = 2  # Number of rounds training takes place
+        args_.n_rounds = 250  # Number of rounds training takes place
         args_.bz = 128
         args_.lr = 0.03  # Learning rate
         args_.log_freq = 20
         args_.logs_root = f"{exp_save_path}/logs"
         args_.save_path = f"{exp_save_path}"
         # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline/atk_start/weights"  # load the model from the 150 FAT epoch
-        args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/before_replace/weights"  # load the model from the 150 FAT epoch
+        # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/before_replace/weights"  # load the model from the 150 FAT epoch
         # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/FAT_progressive/FedAvg_adv_progressive/weights/gt199"  # load the model from the 150 FAT epoch
         
         args_.aggregation_op = defense
-        args_.save_interval = 1
-        args_.eval_train = True
+        args_.save_interval = 20
+        args_.eval_train = False
         args_.synthetic_train_portion = None
         args_.reserve_size = None
         args_.data_portions = None
         args_.unharden_source = None
-        args_.dump_path = f"{exp_save_path}/dump"
+        args_.dump_path = None # f"{exp_save_path}/dump"
         args_.dump_interval = int(args_.n_rounds / 3) if args_.n_rounds >= 3 else 1
         args_.dump_model_diff = True
         args_.dump_updates = True
@@ -107,13 +108,12 @@ if __name__ == "__main__":
             load_root = os.path.join(args_.load_path)
             aggregator.load_state(
                 load_root, 
-                f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/unharden/weights",
-                alpha,
+                # f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/unharden/weights",
+                # alpha,
             )
             aggregator.update_clients()  # update the client's parameters immediatebly, since they should have an up-to-date consistent global model before training starts
-        save_root = os.path.join(args_.save_path, f"FAT_train/weights/gt00")
-        logger.save_model(aggregator, save_root)
-
+        # save_root = os.path.join(args_.save_path, f"FAT_train/weights/gt00")
+        # logger.save_model(aggregator, save_root)
 
         args_adv = copy.deepcopy(args_)
         args_adv.method = "unharden"
@@ -123,13 +123,14 @@ if __name__ == "__main__":
         args_adv.unharden_source = "orig" # the source of the unharden data (orig, synthetic, or orig+synthetic)
         args_adv.data_portions = (0.0, 0.0, 0.0) # portions of orig, synthetic, and unharden data in final training dataset, sum smaller than 3.0 (orig, synthetic, or unharden)
         args_adv.aggregation_op = None
+        args_adv.save_interval = 5
 
         adv_aggregator, adv_clients = dummy_aggregator(args_adv, args_adv.num_clients, random_sample=False)
         # args_adv.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline/unharden/weights"
         args_adv.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/unharden/weights"  # load the model from the 150 FAT epoch
         # args_adv.load_path = f"/home/ubuntu/Documents/jiarui/experiments/fedavg/gt_epoch200/weights/round_199"
 
-        args_adv.unharden_start_round = 100
+        args_adv.unharden_start_round = atk_start
         args_adv.atk_rounds = atk_round
 
         # set the adv params for the adv aggregator
@@ -207,19 +208,23 @@ if __name__ == "__main__":
 
             aggregator.mix(
                 dump_flag=(
-                    current_round % args_.dump_interval == 0 or 
-                    current_round >= args_.n_rounds - args_adv.atk_rounds - 1
+                    args_.dump_interval is not None and
+                    (current_round % args_.dump_interval == 0 or 
+                    current_round >= args_.n_rounds - args_adv.atk_rounds - 1)
                 ),
             )
 
             if (
                 args_.save_interval is not None
-                and current_round % args_.save_interval == 0
+                and (current_round + 1) % args_.save_interval == 0
+                or current_round == 0
             ):
                 save_root = os.path.join(
                     args_.save_path, f"FAT_train/weights/gt{current_round}"
                 )
                 logger.save_model(aggregator, save_root)
+                if args_.eval_train:
+                    logger.write_path_log(f"{save_root}")
 
             # assume that the adversaries cannot finish the current round faster than the global FL clients
             if current_round >= args_adv.unharden_start_round:
@@ -235,7 +240,8 @@ if __name__ == "__main__":
                 adv_aggregator.mix(args_adv.unharden_type, args_adv.unharden_params)
 
                 if (
-                    current_round % args_adv.dump_interval == 0 
+                    args_adv.dump_interval is not None 
+                    and current_round % args_adv.dump_interval == 0 
                     # or current_round >= args_.n_rounds - args_adv.atk_rounds - 1
                 ):
                     if args_adv.dump_model_diff:
@@ -255,13 +261,16 @@ if __name__ == "__main__":
                             pickle.dump(update, f)
 
                 if (
-                    args_.save_interval is not None
-                    and current_round % args_.save_interval == 0
+                    args_adv.save_interval is not None
+                    and current_round % args_adv.save_interval == 0
+                    or current_round == args_adv.unharden_start_round
                 ):
                     save_root = os.path.join(
-                        args_.save_path, f"unharden_train/weights/gt{current_round}"
+                        args_adv.save_path, f"unharden_train/weights/gt{current_round}"
                     )
                     logger.save_model(adv_aggregator, save_root)
+                    if args_adv.eval_train:
+                        logger.write_path_log(f"{save_root}")
 
             if aggregator.c_round != current_round:
                 pbar.update(1)
@@ -270,6 +279,7 @@ if __name__ == "__main__":
         if "save_path" in args_:
             save_root = os.path.join(args_.save_path, "replace/weights")
             logger.save_model(aggregator, save_root)
+            logger.write_path_log(f"{save_root}")
 
         save_arg_log(f_path=args_.logs_root, args=args_, exp_name="args")
         save_arg_log(f_path=args_adv.logs_root, args=args_adv, exp_name="args_adv")
