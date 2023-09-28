@@ -269,7 +269,7 @@ class Aggregator(ABC):
 
             np.save(save_path, weights)
 
-    def load_state(self, dir_path):
+    def load_state(self, dir_path, dir_path2=None, alpha=0.5):
         """
         load the state of the aggregator, i.e., the state dictionary of each `learner` in `global_learners_ensemble`
          from a `.pt` file, and `learners_weights` for each client in `self.clients` from numpy array (`.np` file).
@@ -278,7 +278,15 @@ class Aggregator(ABC):
         """
         for learner_id, learner in enumerate(self.global_learners_ensemble):
             chkpts_path = os.path.join(dir_path, f"chkpts_{learner_id}.pt")
-            learner.model.load_state_dict(torch.load(chkpts_path))
+            if dir_path2 is not None:
+                chkpts_path2 = os.path.join(dir_path2, f"chkpts_{learner_id}.pt")
+                learner.model.load_state_dict(
+                    self.model_weighted_avg(
+                        torch.load(chkpts_path), torch.load(chkpts_path2), alpha=alpha
+                    )
+                )
+            else:
+                learner.model.load_state_dict(torch.load(chkpts_path))
 
         learners_weights = np.zeros((self.n_clients, self.n_learners))
         test_learners_weights = np.zeros((self.n_test_clients, self.n_learners))
@@ -420,6 +428,19 @@ class Aggregator(ABC):
             for key in model1:
                 model_diff[key] = model1[key] - model2[key]
             self.client_updates_record.append(model_diff)
+    
+    def model_weighted_avg(self, dict1, dict2, alpha=0.5):
+        combined_dict = {}
+    
+        for key1, value1 in dict1.items():
+            if key1 in dict2:
+                value2 = dict2[key1]
+                combined_dict[key1] = alpha * value1 + (1 - alpha) * value2
+            else:
+                # Handle the case where the key is not present in both dictionaries
+                combined_dict[key1] = value1
+        
+        return combined_dict
 
 
 class NoCommunicationAggregator(Aggregator):
