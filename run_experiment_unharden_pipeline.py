@@ -50,11 +50,18 @@ def exp_config():
 if __name__ == "__main__":
     print_current_time()
 
-    exp_root_path = input("exp_root_path>>>>\n")
-    # exp_root_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/test"
+    # inputs_config = input("inputs_config>>>>")
+    exp_root_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/test"
+    inputs_config = f"{exp_root_path} celeba 5"
+
+    config_items = inputs_config.split()
+    exp_root_path, dataset, num_clients = config_items
+    num_clients = int(num_clients)
 
     logger = log(exp_root_path)
     logger.write_path_log("FedAvg")
+    logger.write_path_log(dataset)
+    logger.write_path_log(str(num_clients))
 
     exp_generator = exp_config()
 
@@ -68,6 +75,7 @@ if __name__ == "__main__":
         ## INPUT GROUP 2 - experiment macro parameters ##
         args_ = Args()
         args_.method = "FedAvg_adv"  # Method of training
+        args_.experiment = dataset
         args_.n_learners = 1  # Number of hypotheses assumed in system
         args_.n_rounds = 250  # Number of rounds training takes place
         args_.bz = 128
@@ -78,19 +86,21 @@ if __name__ == "__main__":
         # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline/atk_start/weights"  # load the model from the 150 FAT epoch
         # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/before_replace/weights"  # load the model from the 150 FAT epoch
         # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/FAT_progressive/FedAvg_adv_progressive/weights/gt199"  # load the model from the 150 FAT epoch
-        
+        # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/NeurlPS_workshop/unharden_FAT_no_def_cifar10/def_None_atk_client_5_atk_round_1/before_replace/weights"  # load the model from the 150 FAT epoch
+        print("experiment : ", args_.experiment)
+
         args_.aggregation_op = defense
         args_.save_interval = 20
-        args_.eval_train = False
+        args_.eval_train = True
         args_.synthetic_train_portion = None
         args_.reserve_size = None
         args_.data_portions = None
         args_.unharden_source = None
-        args_.dump_path = None # f"{exp_save_path}/dump"
+        args_.dump_path = f"{exp_save_path}/dump"
         args_.dump_interval = int(args_.n_rounds / 3) if args_.n_rounds >= 3 else 1
-        args_.dump_model_diff = True
-        args_.dump_updates = True
-        args_.num_clients = 40  # Number of clients to train with
+        args_.dump_model_diff = False
+        args_.dump_updates = False
+        args_.num_clients = num_clients # Number of clients to train with
 
         Q = 10  # ADV dataset update freq
         G = 0.4  # Adversarial proportion aimed globally
@@ -127,7 +137,7 @@ if __name__ == "__main__":
 
         adv_aggregator, adv_clients = dummy_aggregator(args_adv, args_adv.num_clients, random_sample=False)
         # args_adv.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline/unharden/weights"
-        args_adv.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/unharden/weights"  # load the model from the 150 FAT epoch
+        # args_adv.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/unharden/weights"  # load the model from the 150 FAT epoch
         # args_adv.load_path = f"/home/ubuntu/Documents/jiarui/experiments/fedavg/gt_epoch200/weights/round_199"
 
         args_adv.unharden_start_round = atk_start
@@ -168,11 +178,13 @@ if __name__ == "__main__":
                 # save the chkpt for unharden
                 save_root = os.path.join(args_.save_path, "atk_start/weights")
                 logger.save_model(aggregator, save_root)
+                logger.write_path_log(f"{save_root}")
 
                 # load the chkpt for unharden
-                if "load_path" in args_adv:
-                    print(f"Loading model from args_adv.load_path: {args_adv.load_path}")
-                    save_root = os.path.join(args_adv.load_path)
+                # if "load_path" in args_adv:
+                #     print(f"Loading model from args_adv.load_path: {args_adv.load_path}")
+                #     save_root = os.path.join(args_adv.load_path)
+
                 print(f"Epoch {current_round} | Loading model from {save_root}")
                 adv_aggregator.load_state(save_root)
                 adv_aggregator.update_clients()
@@ -180,10 +192,12 @@ if __name__ == "__main__":
             if current_round == args_.n_rounds - args_adv.atk_rounds:
                 save_root = os.path.join(args_.save_path, "before_replace/weights")
                 logger.save_model(aggregator, save_root)
+                logger.write_path_log(f"{save_root}")
 
                 # save the unharden chkpt for replacement
                 save_root = os.path.join(args_.save_path, "unharden/weights")
                 logger.save_model(adv_aggregator, save_root)
+                logger.write_path_log(f"{save_root}")
 
                 for client_idx in range(args_adv.num_clients):
                     aggregator.clients[client_idx].turn_malicious(
@@ -244,7 +258,7 @@ if __name__ == "__main__":
                     and current_round % args_adv.dump_interval == 0 
                     # or current_round >= args_.n_rounds - args_adv.atk_rounds - 1
                 ):
-                    if args_adv.dump_model_diff:
+                    if args_adv.dump_model_diff and args_adv.dump_path is not None:
                         model_diff = diff_dict(aggregator.global_learners_ensemble[0], adv_aggregator.global_learners_ensemble[0])
                         with open(
                             f"{args_.dump_path}/round{current_round}_model_diff.pkl",
@@ -252,7 +266,7 @@ if __name__ == "__main__":
                         ) as f:
                             pickle.dump(model_diff, f)
 
-                    if args_adv.dump_updates:
+                    if args_adv.dump_updates and args_adv.dump_path is not None:
                         update = (aggregator.client_updates_record, adv_aggregator.client_updates_record)
                         with open(
                             f"{args_.dump_path}/round{current_round}_update.pkl",
