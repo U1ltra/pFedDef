@@ -12,8 +12,8 @@ from torch.utils.data import ConcatDataset, Subset
 
 from sklearn.model_selection import train_test_split
 
-from utils import split_dataset_by_labels, pathological_non_iid_split
-
+from utils import split_dataset_by_labels, pathological_non_iid_split, filter_dataset
+from tqdm import tqdm
 
 ALPHA = .4
 N_CLASSES = 16
@@ -104,6 +104,12 @@ def parse_args():
         type=float,
         default=1.0
     )
+    parser.add_argument(
+        '--attr_used',
+        help='attributes used for the experiment;',
+        type=str,
+        default="Eyeglasses,Male,Smiling,Wearing_Hat"
+    )
     return parser.parse_args()
 
 
@@ -124,20 +130,28 @@ def main():
     num_points_train = int(len(train_data)*args.load_frac)
     num_points_test = int(len(test_data)*args.load_frac)
     
-    train_idx = np.arange(len(train_data))
+    # filter dataset
+    args.attr_used = args.attr_used.split(',')
+    if len(args.attr_used) == 40:   # all 40 attributes of celeba are included
+        train_idx = np.arange(len(train_data))
+    else:
+        train_idx = filter_dataset(train_data.attr, args.attr_used)
+
     np.random.shuffle(train_idx)
     train_idx = train_idx[:num_points_train]
-    
+
     train_data = Subset(train_data, train_idx)
-    
     np.save('train_idx', train_idx)
     
-    test_idx = np.arange(len(test_data))
+    if len(args.attr_used) == 40:   # all 40 attributes of celeba are included
+        test_idx = np.arange(len(test_data))
+    else:
+        test_idx = filter_dataset(test_data.attr, args.attr_used)
+
     np.random.shuffle(test_idx)
     test_idx = test_idx[:num_points_test]
     
     test_data = Subset(test_data, test_idx)
-    
     np.save('test_idx', test_idx)
     
     dataset =\
@@ -178,8 +192,11 @@ def main():
     os.makedirs(os.path.join(PATH, "test"), exist_ok=True)
 
     for mode, clients_indices in [('train', train_clients_indices), ('test', test_clients_indices)]:
-        for client_id, indices in enumerate(clients_indices):
+        
+        print("Saving {} data".format(mode))
+        for client_id, indices in tqdm(enumerate(clients_indices)):
             if len(indices) == 0:
+                print("WARNING: client {} is empty".format(client_id))
                 continue
 
             client_path = os.path.join(PATH, mode, "task_{}".format(client_id))
