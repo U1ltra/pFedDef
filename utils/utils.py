@@ -83,6 +83,12 @@ def get_learner(
         metric = accuracy
         model = get_mobilenet(n_classes=100).to(device)
         is_binary_classification = False
+    elif name == "celeba":
+        criterion = nn.CrossEntropyLoss(reduction="none").to(device)
+        metric = accuracy
+        model = get_mobilenet(n_classes=16).to(device)
+        is_binary_classification = False
+
     elif name == "emnist" or name == "femnist":
         criterion = nn.CrossEntropyLoss(reduction="none").to(device)
         metric = accuracy
@@ -220,6 +226,8 @@ def get_loaders(type_, root_path, batch_size, is_validation, reserve_size=None):
         inputs, targets = get_cifar10()
     elif type_ == "cifar100":
         inputs, targets = get_cifar100()
+    elif type_ == "celeba":
+        inputs, targets = get_celeba(), None
     elif type_ == "emnist":
         inputs, targets = get_emnist()
     elif type_ == "mnist":
@@ -272,6 +280,10 @@ def get_loaders(type_, root_path, batch_size, is_validation, reserve_size=None):
         val_iterators.append(val_iterator)
         test_iterators.append(test_iterator)
 
+        # print("task_id: ", task_id, "train_iterator: ", len(train_iterator), "batch_size: ", batch_size, "train_iterator.dataset: ", len(train_iterator.dataset))
+        # print("task_id: ", task_id, "val_iterator: ", len(val_iterator), "batch_size: ", batch_size, "val_iterator.dataset: ", len(val_iterator.dataset))
+        # print("task_id: ", task_id, "test_iterator: ", len(test_iterator), "batch_size: ", batch_size, "test_iterator.dataset: ", len(test_iterator.dataset))
+
     return train_iterators, val_iterators, test_iterators
 
 
@@ -292,6 +304,8 @@ def get_loader(type_, path, batch_size, train, inputs=None, targets=None, reserv
         dataset = SubCIFAR10(path, cifar10_data=inputs, cifar10_targets=targets)
     elif type_ == "cifar100":
         dataset = SubCIFAR100(path, cifar100_data=inputs, cifar100_targets=targets)
+    elif type_ == "celeba":
+        dataset = SubCelebA(path, celeba_iterator=inputs)
     elif type_ == "emnist":
         dataset = SubEMNIST(path, emnist_data=inputs, emnist_targets=targets)
     elif type_ == "femnist":
@@ -307,7 +321,7 @@ def get_loader(type_, path, batch_size, train, inputs=None, targets=None, reserv
         return
 
     # drop last batch, because of BatchNorm layer used in mobilenet_v2
-    drop_last = ((type_ == "cifar100") or (type_ == "cifar10")) and (len(dataset) > batch_size) and train
+    drop_last = ((type_ == "cifar100") or (type_ == "cifar10") or (type_ == "celeba")) and (len(dataset) > batch_size) and train
 
     if reserve_size is not None and train:
         dataset = SyntheticDataset(dataset, reserve_size)

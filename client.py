@@ -793,7 +793,7 @@ class Adv_Client(Client):
         # Generate adversarial datapoints while recognizing idx of sampled without replacement
         
         # Draw random idx without replacement 
-        num_datapoints = self.train_iterator.dataset.targets.shape[0]
+        num_datapoints = len(self.train_iterator.dataset)
         sample_size = int(np.ceil(num_datapoints * self.adv_proportion))
         sample = np.random.choice(a=num_datapoints, size=sample_size)
         x_data = self.adv_nn.dataloader.x_data[sample]
@@ -802,7 +802,7 @@ class Adv_Client(Client):
         self.adv_nn.pgd_sub(self.atk_params, x_data.cuda(), y_data.cuda())
         x_adv = self.adv_nn.x_adv
         y_adv = self.adv_nn.y_adv
-        
+
         return sample, x_adv, y_adv
     
     def assign_advdataset(self):
@@ -817,14 +817,25 @@ class Adv_Client(Client):
         for i in range(sample_id.shape[0]):
             idx = sample_id[i]
             x_val_normed = x_adv[i]
-            try:
+
+            if self.og_dataloader.dataset.name == "celeba":
+                x_val_unnorm = unnormalize_celeba(x_val_normed)
+            elif self.og_dataloader.dataset.name == "cifar10":    
                 x_val_unnorm = unnormalize_cifar10(x_val_normed)
-            except:
+            elif self.og_dataloader.dataset.name == "cifar100":
+                x_val_unnorm = unnormalize_cifar10(x_val_normed)
+            elif self.og_dataloader.dataset.name == "femnist":
                 x_val_unnorm = unnormalize_femnist(x_val_normed)
+            else:
+                raise ValueError("Dataset not recognized")
         
-            self.train_iterator.dataset.data[idx] = x_val_unnorm
+            if self.og_dataloader.dataset.name == "celeba":
+                self.train_iterator.dataset.append_adv_example(idx, x_val_unnorm)
+            else:
+                self.train_iterator.dataset.data[idx] = x_val_unnorm
 
             if self.unhardened_portion is not None and np.random.rand() < self.unhardened_portion:
+                # this is obseleted unharden training code
                 y_val = y_adv[i]
                 self.train_iterator.dataset.targets[idx] = y_val
         
@@ -876,7 +887,7 @@ class Unharden_Client(Client):
         self.synthetic = self.synthetic_train_portion != 0.0 # if synthetic data is used
 
         self.unharden_source = unharden_source # source data used to generate unharden data (orig, synthetic, or orig+synthetic)
-        self.poritons_set = (1.0, 1.0, 1.0) # portions of orig, synthetic, and unharden data in final training dataset, sum smaller than 3.0 (orig, synthetic, or unharden)
+        # self.poritons_set = (1.0, 1.0, 1.0) # portions of orig, synthetic, and unharden data in final training dataset, sum smaller than 3.0 (orig, synthetic, or unharden)
         self.poritons_set = data_portions # portions of orig, synthetic, and unharden data in final training dataset, sum smaller than 3.0 (orig, synthetic, or unharden)
     
     def gen_customdataloader(self, og_dataloader):

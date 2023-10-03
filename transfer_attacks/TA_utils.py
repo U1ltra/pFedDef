@@ -201,7 +201,7 @@ def get_atk_params(args_, clients, num_clients, K, eps):
     Du = np.zeros(len(clients))
 
     for i in range(len(clients)):
-        num_data = clients[i].train_iterator.dataset.targets.shape[0]
+        num_data = len(clients[i].train_iterator.dataset)
         Du[i] = num_data
 
     return Ru, atk_params, num_h, Du

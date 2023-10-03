@@ -3,9 +3,9 @@ import pickle
 import string
 
 import torch
-from torchvision.datasets import CIFAR10, CIFAR100, EMNIST, MNIST
-from torchvision.transforms import Compose, ToTensor, Normalize
-from torch.utils.data import Dataset
+from torchvision.datasets import CIFAR10, CIFAR100, EMNIST, MNIST, CelebA
+from torchvision.transforms import Compose, ToTensor, Normalize, Resize, ToPILImage
+from torch.utils.data import Dataset, ConcatDataset, Subset
 
 import numpy as np
 from PIL import Image
@@ -39,7 +39,9 @@ class SyntheticDataset(Dataset):
 
         reserve_size = int(reserve_size)
         self.data = torch.cat([self.dataset.data for _ in range(reserve_size)], dim=0)
-        self.targets = torch.cat([self.dataset.targets for _ in range(reserve_size)], dim=0)
+        self.targets = torch.cat(
+            [self.dataset.targets for _ in range(reserve_size)], dim=0
+        )
         self.init_size = len(self.data)
 
         self.orig_data = self.dataset.data
@@ -51,18 +53,13 @@ class SyntheticDataset(Dataset):
         self.unharden_data = None
         self.unharden_targets = None
 
-        self.transform = \
-            Compose([
-                ToTensor(),
-                Normalize(
-                    (0.4914, 0.4822, 0.4465),
-                    (0.2023, 0.1994, 0.2010)
-                )
-            ])
-    
+        self.transform = Compose(
+            [ToTensor(), Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
+        )
+
     def __len__(self):
         return len(self.data)
-    
+
     def __getitem__(self, index):
         all_data = self.data
         all_targets = self.targets
@@ -73,21 +70,25 @@ class SyntheticDataset(Dataset):
 
         if self.transform is not None:
             img = self.transform(img)
-        
+
         return img, target, index
 
     def gen_synthetic_data(self, poriton):
-
         synthetic_data = torch.randint(
-            self.orig_data.min(), 
-            int(self.orig_data.max())+1, 
-            size = (self.orig_data.size(0), self.orig_data.size(1), self.orig_data.size(2), self.orig_data.size(3)), 
-            dtype = torch.uint8,
+            self.orig_data.min(),
+            int(self.orig_data.max()) + 1,
+            size=(
+                self.orig_data.size(0),
+                self.orig_data.size(1),
+                self.orig_data.size(2),
+                self.orig_data.size(3),
+            ),
+            dtype=torch.uint8,
         )
         synthetic_targets = torch.randint(
-            self.orig_targets.min(), 
-            int(self.orig_targets.max())+1, 
-            size = (self.orig_data.size(0),), 
+            self.orig_targets.min(),
+            int(self.orig_targets.max()) + 1,
+            size=(self.orig_data.size(0),),
             dtype=torch.int64,
         )
 
@@ -100,28 +101,29 @@ class SyntheticDataset(Dataset):
     def set_unharden(self, unharden_data, unharden_targets):
         self.unharden_data = unharden_data
         self.unharden_targets = unharden_targets
-    
+
     def set_data(self, type):
-        if type == 'orig':
+        if type == "orig":
             self.data = self.orig_data
             self.targets = self.orig_targets
-        elif type == 'synthetic':
+        elif type == "synthetic":
             self.data = self.synthetic_data
             self.targets = self.synthetic_targets
-        elif type == 'orig+synthetic':
+        elif type == "orig+synthetic":
             self.data = torch.cat([self.orig_data, self.synthetic_data], dim=0)
             self.targets = torch.cat([self.orig_targets, self.synthetic_targets], dim=0)
         else:
-            raise Exception('type must be synthetic or orig')
-        
-    def set_portions(self, orig_portion, synthetic_portion, unharden_portion):
+            raise Exception("type must be synthetic or orig")
 
+    def set_portions(self, orig_portion, synthetic_portion, unharden_portion):
         self.orig_portion = orig_portion
         self.synthetic_portion = synthetic_portion
         self.unharden_portion = unharden_portion
 
         self.orig_size = int(len(self.orig_data) * self.orig_portion)
-        self.orig_sample = np.random.choice(len(self.orig_data), self.orig_size, replace=False)
+        self.orig_sample = np.random.choice(
+            len(self.orig_data), self.orig_size, replace=False
+        )
         self.data = self.orig_data[self.orig_sample]
         self.targets = self.orig_targets[self.orig_sample]
 
@@ -129,20 +131,37 @@ class SyntheticDataset(Dataset):
             self.synthetic_sample = np.array([])
         else:
             self.synthetic_size = int(len(self.synthetic_data) * self.synthetic_portion)
-            self.synthetic_sample = np.random.choice(len(self.synthetic_data), self.synthetic_size, replace=False)
-            self.data = torch.cat([self.data, self.synthetic_data[self.synthetic_sample]], dim=0)
-            self.targets = torch.cat([self.targets, self.synthetic_targets[self.synthetic_sample]], dim=0)
+            self.synthetic_sample = np.random.choice(
+                len(self.synthetic_data), self.synthetic_size, replace=False
+            )
+            self.data = torch.cat(
+                [self.data, self.synthetic_data[self.synthetic_sample]], dim=0
+            )
+            self.targets = torch.cat(
+                [self.targets, self.synthetic_targets[self.synthetic_sample]], dim=0
+            )
 
         if self.unharden_targets is None:
             self.unharden_sample = np.array([])
         else:
             self.unharden_size = int(len(self.unharden_data) * self.unharden_portion)
-            self.unharden_sample = np.random.choice(len(self.unharden_data), self.unharden_size, replace=False)
-            self.data = torch.cat([self.data, self.unharden_data[self.unharden_sample]], dim=0)
-            self.targets = torch.cat([self.targets, self.unharden_targets[self.unharden_sample]], dim=0)
+            self.unharden_sample = np.random.choice(
+                len(self.unharden_data), self.unharden_size, replace=False
+            )
+            self.data = torch.cat(
+                [self.data, self.unharden_data[self.unharden_sample]], dim=0
+            )
+            self.targets = torch.cat(
+                [self.targets, self.unharden_targets[self.unharden_sample]], dim=0
+            )
 
-        assert len(self.data) == len(self.targets), "data and targets must have the same length"
-        assert len(self.data) <= self.init_size, "data must be smaller than the total size when the dataset object is initialized"
+        assert len(self.data) == len(
+            self.targets
+        ), "data and targets must have the same length"
+        assert (
+            len(self.data) <= self.init_size
+        ), "data must be smaller than the total size when the dataset object is initialized"
+
 
 class TabularDataset(Dataset):
     """
@@ -172,7 +191,11 @@ class TabularDataset(Dataset):
 
     def __getitem__(self, idx):
         x, y = self.data[idx]
-        return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.int64), idx
+        return (
+            torch.tensor(x, dtype=torch.float32),
+            torch.tensor(y, dtype=torch.int64),
+            idx,
+        )
 
 
 class SubFEMNIST(Dataset):
@@ -193,11 +216,9 @@ class SubFEMNIST(Dataset):
     __len__
     __getitem__
     """
+
     def __init__(self, path):
-        self.transform = Compose([
-            ToTensor(),
-            Normalize((0.1307,), (0.3081,))
-        ])
+        self.transform = Compose([ToTensor(), Normalize((0.1307,), (0.3081,))])
 
         self.data, self.targets = torch.load(path)
 
@@ -210,8 +231,8 @@ class SubFEMNIST(Dataset):
         try:
             img = np.uint8(img.numpy() * 255)
         except:
-            img = np.uint8(img.detach().numpy()*255)
-        img = Image.fromarray(img, mode='L')
+            img = np.uint8(img.detach().numpy() * 255)
+        img = Image.fromarray(img, mode="L")
 
         if self.transform is not None:
             img = self.transform(img)
@@ -249,11 +270,7 @@ class SubEMNIST(Dataset):
             self.indices = pickle.load(f)
 
         if transform is None:
-            self.transform =\
-                Compose([
-                    ToTensor(),
-                    Normalize((0.1307,), (0.3081,))
-                ])
+            self.transform = Compose([ToTensor(), Normalize((0.1307,), (0.3081,))])
 
         if emnist_data is None or emnist_targets is None:
             self.data, self.targets = get_emnist()
@@ -269,7 +286,7 @@ class SubEMNIST(Dataset):
     def __getitem__(self, index):
         img, target = self.data[index], int(self.targets[index])
 
-        img = Image.fromarray(img.numpy(), mode='L')
+        img = Image.fromarray(img.numpy(), mode="L")
 
         if self.transform is not None:
             img = self.transform(img)
@@ -295,6 +312,7 @@ class SubCIFAR10(Dataset):
     __len__
     __getitem__
     """
+
     def __init__(self, path, cifar10_data=None, cifar10_targets=None, transform=None):
         """
         :param path: path to .pkl file; expected to store list of indices
@@ -306,14 +324,12 @@ class SubCIFAR10(Dataset):
             self.indices = pickle.load(f)
 
         if transform is None:
-            self.transform = \
-                Compose([
+            self.transform = Compose(
+                [
                     ToTensor(),
-                    Normalize(
-                        (0.4914, 0.4822, 0.4465),
-                        (0.2023, 0.1994, 0.2010)
-                    )
-                ])
+                    Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                ]
+            )
 
         if cifar10_data is None or cifar10_targets is None:
             self.data, self.targets = get_cifar10()
@@ -322,6 +338,7 @@ class SubCIFAR10(Dataset):
 
         self.data = self.data[self.indices]
         self.targets = self.targets[self.indices]
+        self.name = "cifar10"
 
     def __len__(self):
         return self.data.size(0)
@@ -357,6 +374,7 @@ class SubCIFAR100(Dataset):
     __len__
     __getitem__
     """
+
     def __init__(self, path, cifar100_data=None, cifar100_targets=None, transform=None):
         """
         :param path: path to .pkl file; expected to store list of indices:
@@ -368,14 +386,12 @@ class SubCIFAR100(Dataset):
             self.indices = pickle.load(f)
 
         if transform is None:
-            self.transform = \
-                Compose([
+            self.transform = Compose(
+                [
                     ToTensor(),
-                    Normalize(
-                        (0.4914, 0.4822, 0.4465),
-                        (0.2023, 0.1994, 0.2010)
-                    )
-                ])
+                    Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                ]
+            )
 
         if cifar100_data is None or cifar100_targets is None:
             self.data, self.targets = get_cifar100()
@@ -385,6 +401,7 @@ class SubCIFAR100(Dataset):
 
         self.data = self.data[self.indices]
         self.targets = self.targets[self.indices]
+        self.name = "cifar100"
 
     def __len__(self):
         return self.data.size(0)
@@ -401,7 +418,151 @@ class SubCIFAR100(Dataset):
 
         return img, target, index
 
+
+class SubCelebA(Dataset):
+    # these are the attributes considered
+    attr_used = ["Eyeglasses", "Male", "Smiling", "Wearing_Hat"]
+    attr_to_idx = {
+        "5_o_Clock_Shadow": 0,
+        "Arched_Eyebrows": 1,
+        "Attractive": 2,
+        "Bags_Under_Eyes": 3,
+        "Bald": 4,
+        "Bangs": 5,
+        "Big_Lips": 6,
+        "Big_Nose": 7,
+        "Black_Hair": 8,
+        "Blond_Hair": 9,
+        "Blurry": 10,
+        "Brown_Hair": 11,
+        "Bushy_Eyebrows": 12,
+        "Chubby": 13,
+        "Double_Chin": 14,
+        "Eyeglasses": 15,
+        "Goatee": 16,
+        "Gray_Hair": 17,
+        "Heavy_Makeup": 18,
+        "High_Cheekbones": 19,
+        "Male": 20,
+        "Mouth_Slightly_Open": 21,
+        "Mustache": 22,
+        "Narrow_Eyes": 23,
+        "No_Beard": 24,
+        "Oval_Face": 25,
+        "Pale_Skin": 26,
+        "Pointy_Nose": 27,
+        "Receding_Hairline": 28,
+        "Rosy_Cheeks": 29,
+        "Sideburns": 30,
+        "Smiling": 31,
+        "Straight_Hair": 32,
+        "Wavy_Hair": 33,
+        "Wearing_Earrings": 34,
+        "Wearing_Hat": 35,
+        "Wearing_Lipstick": 36,
+        "Wearing_Necklace": 37,
+        "Wearing_Necktie": 38,
+        "Young": 39,
+    }
+
+    """
+    Constructs a subset of CelebA dataset from a pickle file;
+    expects pickle file to store list of indices
+
+    Attributes
+    ----------
+    indices: iterable of integers
+    transform
+    data
+    targets
+
+    Methods
+    -------
+    __init__
+    __len__
+    __getitem__
+    """
+
+    def __init__(self, path, celeba_iterator, transform=None):
+        """
+        :param path: path to .pkl file; expected to store list of indices:
+        :param celeba_data: CelebA dataset inputs
+        :param celeba_targets: CelebA dataset labels
+        :param transform:
+        """
+        with open(path, "rb") as f:
+            self.indices = pickle.load(f)
+
+        if transform is None:
+            self.transform = Compose(
+                [
+                    ToTensor(),
+                    Normalize((0.5063, 0.4258, 0.3832), (0.2661, 0.2452, 0.2414)),
+                ]
+            )
+
+        if celeba_iterator is None:
+            self.celeba_iterator = get_celeba()
+        else:
+            self.celeba_iterator = celeba_iterator
+
+        # self.data = []
+        # self.targets = []
+        # for idx in self.indices:
+        #     img, target = self.celeba_iterator[idx]
+        #     self.data.append(img)
+        #     self.targets.append(target)
+
+        # self.data = torch.stack(self.data)
+        # self.targets = torch.stack(self.targets)
+
+        self.name = "celeba"
+        self.orig_to_adv_map = {}
+        self.adv_inputs = []
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, index):
+        # return self.data[index], self.targets[index], index
+
+        raw_idx = self.indices[index]  # get index in the original dataset
+        assert raw_idx < len(
+            self.celeba_iterator
+        ), "raw_idx: {}, len(self.celeba_iterator): {}".format(
+            raw_idx, len(self.celeba_iterator)
+        )
+        
+        img, target = self.celeba_iterator[raw_idx]
+
+        if index in self.orig_to_adv_map:
+            # use the adversarial example if it exists
+            img = self.adv_inputs[self.orig_to_adv_map[index]]
     
+        # already done in get_celeba()
+        # if self.transform is not None:
+        #     img = self.transform(img)
+        # target = self.multiHot_to_classTensor(target) # already done in get_celeba()
+        assert target >= 0 and target < 16, "target: {}".format(target)
+
+        return img, target, index
+
+    def multiHot_to_classTensor(self, target):
+        label = 0
+        for attr_idx, attr in enumerate(self.attr_used):
+            if target[self.attr_to_idx[attr]] == 1:
+                label += 2 ** (attr_idx)
+
+        label = torch.tensor(label, dtype=torch.int64)
+        return label
+    
+    def append_adv_example(self, idx, adv_input):
+        # move the input to cpu
+        adv_input = adv_input.cpu()
+        self.adv_inputs.append(adv_input)
+        self.orig_to_adv_map[idx] = len(self.adv_inputs) - 1
+
+
 class SubMNIST(Dataset):
     """
     Constructs a subset of EMNIST dataset from a pickle file;
@@ -432,11 +593,7 @@ class SubMNIST(Dataset):
             self.indices = pickle.load(f)
 
         if transform is None:
-            self.transform =\
-                Compose([
-                    ToTensor(),
-                    Normalize((0.1307,), (0.3081,))
-                ])
+            self.transform = Compose([ToTensor(), Normalize((0.1307,), (0.3081,))])
 
         if mnist_data is None or mnist_targets is None:
             self.data, self.targets = get_mnist()
@@ -452,13 +609,13 @@ class SubMNIST(Dataset):
     def __getitem__(self, index):
         img, target = self.data[index], int(self.targets[index])
 
-        img = Image.fromarray(img.numpy(), mode='L')
+        img = Image.fromarray(img.numpy(), mode="L")
 
         if self.transform is not None:
             img = self.transform(img)
 
         return img, target, index
-    
+
 
 class CharacterDataset(Dataset):
     def __init__(self, file_path, chunk_len):
@@ -473,7 +630,7 @@ class CharacterDataset(Dataset):
         self.n_characters = len(self.all_characters)
         self.chunk_len = chunk_len
 
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             self.text = f.read()
 
         self.tokenized_text = torch.zeros(len(self.text), dtype=torch.long)
@@ -496,8 +653,8 @@ class CharacterDataset(Dataset):
 
     def __preprocess_data(self):
         for idx in range(self.__len__()):
-            self.inputs[idx] = self.tokenized_text[idx:idx+self.chunk_len]
-            self.targets[idx] = self.tokenized_text[idx+1:idx+self.chunk_len+1]
+            self.inputs[idx] = self.tokenized_text[idx : idx + self.chunk_len]
+            self.targets[idx] = self.tokenized_text[idx + 1 : idx + self.chunk_len + 1]
 
     def __len__(self):
         return max(0, len(self.text) - self.chunk_len)
@@ -516,33 +673,13 @@ def get_emnist():
     emnist_path = os.path.join("data", "emnist", "raw_data")
     assert os.path.isdir(emnist_path), "Download EMNIST dataset!!"
 
-    emnist_train =\
-        EMNIST(
-            root=emnist_path,
-            split="byclass",
-            download=True,
-            train=True
-        )
+    emnist_train = EMNIST(root=emnist_path, split="byclass", download=True, train=True)
 
-    emnist_test =\
-        EMNIST(
-            root=emnist_path,
-            split="byclass",
-            download=True,
-            train=True
-        )
+    emnist_test = EMNIST(root=emnist_path, split="byclass", download=True, train=True)
 
-    emnist_data =\
-        torch.cat([
-            emnist_train.data,
-            emnist_test.data
-        ])
+    emnist_data = torch.cat([emnist_train.data, emnist_test.data])
 
-    emnist_targets =\
-        torch.cat([
-            emnist_train.targets,
-            emnist_test.targets
-        ])
+    emnist_targets = torch.cat([emnist_train.targets, emnist_test.targets])
 
     return emnist_data, emnist_targets
 
@@ -557,29 +694,17 @@ def get_cifar10():
     cifar10_path = os.path.join("data", "cifar10", "raw_data")
     assert os.path.isdir(cifar10_path), "Download cifar10 dataset!!"
 
-    cifar10_train =\
-        CIFAR10(
-            root=cifar10_path,
-            train=True, download=False
-        )
+    cifar10_train = CIFAR10(root=cifar10_path, train=True, download=False)
 
-    cifar10_test =\
-        CIFAR10(
-            root=cifar10_path,
-            train=False,
-            download=False)
+    cifar10_test = CIFAR10(root=cifar10_path, train=False, download=False)
 
-    cifar10_data = \
-        torch.cat([
-            torch.tensor(cifar10_train.data),
-            torch.tensor(cifar10_test.data)
-        ])
+    cifar10_data = torch.cat(
+        [torch.tensor(cifar10_train.data), torch.tensor(cifar10_test.data)]
+    )
 
-    cifar10_targets = \
-        torch.cat([
-            torch.tensor(cifar10_train.targets),
-            torch.tensor(cifar10_test.targets)
-        ])
+    cifar10_targets = torch.cat(
+        [torch.tensor(cifar10_train.targets), torch.tensor(cifar10_test.targets)]
+    )
 
     return cifar10_data, cifar10_targets
 
@@ -594,58 +719,82 @@ def get_cifar100():
     cifar100_path = os.path.join("data", "cifar100", "raw_data")
     assert os.path.isdir(cifar100_path), "Download cifar10 dataset!!"
 
-    cifar100_train =\
-        CIFAR100(
-            root=cifar100_path,
-            train=True, download=False
-        )
+    cifar100_train = CIFAR100(root=cifar100_path, train=True, download=False)
 
-    cifar100_test =\
-        CIFAR100(
-            root=cifar100_path,
-            train=False,
-            download=False)
+    cifar100_test = CIFAR100(root=cifar100_path, train=False, download=False)
 
-    cifar100_data = \
-        torch.cat([
-            torch.tensor(cifar100_train.data),
-            torch.tensor(cifar100_test.data)
-        ])
+    cifar100_data = torch.cat(
+        [torch.tensor(cifar100_train.data), torch.tensor(cifar100_test.data)]
+    )
 
-    cifar100_targets = \
-        torch.cat([
-            torch.tensor(cifar100_train.targets),
-            torch.tensor(cifar100_test.targets)
-        ])
+    cifar100_targets = torch.cat(
+        [torch.tensor(cifar100_train.targets), torch.tensor(cifar100_test.targets)]
+    )
 
     return cifar100_data, cifar100_targets
+
+
+def get_celeba():
+    celeba_path = os.path.join("data", "celeba", "raw_data")
+    assert os.path.isdir(celeba_path), "Download celeba dataset!!"
+
+    transform = Compose(
+        [
+            ToTensor(),
+            Resize((30, 30)),
+            Normalize((0.5063, 0.4258, 0.3832), (0.2661, 0.2452, 0.2414)),
+            # ToPILImage(),
+        ]
+    )
+
+    def transform_target(x, required_labels):
+        label = 0
+        for idx, attr_idx in enumerate(required_labels):
+            if x[attr_idx] == 1:
+                label += 2 ** (idx)
+
+        label = torch.tensor(label, dtype=torch.int64)
+        return label
+
+    celeba_train = CelebA(
+        root=celeba_path,
+        split="train",
+        download=False,
+        transform=transform,
+        target_transform=lambda x: transform_target(
+            x, required_labels=[31, 20, 15, 35]
+        ),
+    )
+
+    celeba_test = CelebA(
+        root=celeba_path,
+        split="test",
+        download=False,
+        transform=transform,
+        target_transform=lambda x: transform_target(
+            x, required_labels=[31, 20, 15, 35]
+        ),
+    )
+
+    # concat dataset
+    celeba_data = ConcatDataset([celeba_train, celeba_test])
+    return celeba_data
+
 
 def get_mnist():
     mnist_path = os.path.join("data", "mnist", "raw_data")
     assert os.path.isdir(mnist_path), "Download mnist dataset!!"
-    
-    mnist_train =\
-        MNIST(
-            root= mnist_path,
-            train=True, download=False
-        )
 
-    mnist_test =\
-        MNIST(
-            root=mnist_path,
-            train=False,
-            download=False)
+    mnist_train = MNIST(root=mnist_path, train=True, download=False)
 
-    mnist_data = \
-        torch.cat([
-            torch.tensor(mnist_train.data),
-            torch.tensor(mnist_test.data)
-        ])
+    mnist_test = MNIST(root=mnist_path, train=False, download=False)
 
-    mnist_targets = \
-        torch.cat([
-            torch.tensor(mnist_train.targets),
-            torch.tensor(mnist_test.targets)
-        ])
+    mnist_data = torch.cat(
+        [torch.tensor(mnist_train.data), torch.tensor(mnist_test.data)]
+    )
+
+    mnist_targets = torch.cat(
+        [torch.tensor(mnist_train.targets), torch.tensor(mnist_test.targets)]
+    )
 
     return mnist_data, mnist_targets
