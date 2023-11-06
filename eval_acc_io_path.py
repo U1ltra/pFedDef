@@ -45,6 +45,8 @@ for i in paths:
 # Generating Empty Aggregator to be loaded 
 
 setting = paths[0]
+dataset = paths[1]
+num_clients = int(paths[2])
 
 if setting == 'FedEM':
     nL = 3
@@ -53,7 +55,7 @@ else:
 
 # Manually set argument parameters
 args_ = Args()
-args_.experiment = "cifar10"
+args_.experiment = dataset
 args_.method = setting
 args_.decentralized = False
 args_.sampling_rate = 1.0
@@ -85,9 +87,9 @@ args_.unharden_source = None
 args_.dump_path = None
 
 # Generate the dummy values here
-aggregator, clients = dummy_aggregator(args_, num_user=40)
+aggregator, clients = dummy_aggregator(args_, num_user=num_clients)
 
-for f_path in paths[1:]:
+for f_path in paths[3:]:
     print(f"Working on {f_path}")
     sys.stdout.flush()
     # Compiling Dataset from Clients
@@ -111,7 +113,7 @@ for f_path in paths[1:]:
 
 
     # Import Model Weights
-    num_models = 40
+    num_models = num_clients
 
     np.set_printoptions(formatter={'float': lambda x: "{0:0.2f}".format(x)})
 
@@ -231,7 +233,7 @@ for f_path in paths[1:]:
             
             batch_size = min(custom_batch_size, dataloader.y_data.shape[0])
             
-            t1 = Transferer(models_list=models_test, dataloader=dataloader)
+            t1 = Transferer(models_list=models_test, dataloader=dataloader, adv_generate_model_list=models_test)
             t1.generate_victims(victim_idxs)
             
             # Perform Attacks Targeted
