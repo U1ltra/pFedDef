@@ -35,18 +35,21 @@ def load_path():
         print(i)
 
     setting = paths[0]
+    dataset = paths[1]
+    num_clients = int(paths[2])
+
     if setting == "FedEM":
         nL = 3
     else:
         nL = 1
 
-    return paths, setting, nL
+    return paths[3:], setting, dataset, num_clients, nL
 
 
-def init_aggregator(num_models=40):
+def init_aggregator(setting, dataset, num_models=40):
     # Manually set argument parameters
     args_ = Args()
-    args_.experiment = "cifar10"
+    args_.experiment = dataset
     args_.method = setting
     args_.decentralized = False
     args_.sampling_rate = 1.0
@@ -116,10 +119,12 @@ def load_agg_state(f_path, aggregator, args_, setting):
             weights_h += [h.model.state_dict()]
 
         weights = np.load(f"{root_path}/train_client_weights.npy")
+        if len(weights) != num_clients:
+            weights = np.ones([num_clients, 1])
 
         model_weights = []
 
-        for i in range(num_models):
+        for i in range(num_clients):
             model_weights += [weights[i]]
 
         models_test = []
@@ -161,20 +166,24 @@ def init_metrics(num_models):
 
 ### Main Code
 if __name__ == "__main__":
-    paths, setting, nL = load_path()
+    paths, setting, dataset, num_clients, nL = load_path()
 
-    num_models = 40
-    aggregator_test, clients_test, args_test = init_aggregator(num_models)
-    aggregator_adv_gen, clients_adv_gen, args_adv_gen = init_aggregator(num_models)
+    aggregator_test, clients_test, args_test = init_aggregator(setting, dataset, num_clients)
+    aggregator_adv_gen, clients_adv_gen, args_adv_gen = init_aggregator(setting, dataset, num_clients)
 
-    models_adv_gen_path = "/home/ubuntu/Documents/jiarui/experiments/FAT_progressive/transferADV/FedAvg_adv_external/weights/chkpts_249"
+    models_adv_gen_path = "/home/ubuntu/Documents/jiarui/experiments/baseline/FedAvg_seed4321/weights"
     models_adv_gen = load_agg_state(
         models_adv_gen_path, aggregator_adv_gen, args_adv_gen, setting
     )
 
-    for f_path in paths[1:]:
+    for f_path in paths:
         print(f"Working on {f_path}", flush=True)
         sys.stdout.flush()
+
+        if os.path.exists(f"{f_path}/eval/all_acc_external.npy"):
+            print(f"Already done {f_path}", flush=True)
+            continue
+
 
         data_x, _, _ = get_dataloader(clients_adv_gen)
 
@@ -184,7 +193,7 @@ if __name__ == "__main__":
         models_test_0 = load_agg_state(f_path, aggregator_test, args_test, setting)
 
         # Here we will make a dictionary that will hold results
-        logs_adv = init_metrics(num_models)
+        logs_adv = init_metrics(num_clients)
 
         # Run Measurements for both targetted and untargeted analysis
         new_num_models = len(models_test_0)
