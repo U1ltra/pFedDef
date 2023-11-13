@@ -189,7 +189,7 @@ if __name__ == "__main__":
         new_num_models = len(models_test_0)
         victim_idxs = range(new_num_models)
         custom_batch_size = 500
-        eps = 4.5
+        eps = 100
 
         test_pair = [False]  # add True for paired testing
         for flag in test_pair:
@@ -314,5 +314,5 @@ if __name__ == "__main__":
                 np.save(f"{store_eval_path}/pair_acc.npy", orig_acc)
                 np.save(f"{store_eval_path}/pair_adv_acc.npy", adv_acc)
             else:
-                np.save(f"{store_eval_path}/all_acc_external.npy", orig_acc)
-                np.save(f"{store_eval_path}/all_adv_acc_external.npy", adv_acc)
+                np.save(f"{store_eval_path}/all_acc_external_epsilon_LL.npy", orig_acc)
+                np.save(f"{store_eval_path}/all_adv_acc_external_epsilon_LL.npy", adv_acc)
