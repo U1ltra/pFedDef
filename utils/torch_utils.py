@@ -122,7 +122,8 @@ def byzantine_robust_aggregate_tm(
         weights=None,
         average_params=True,
         average_gradients=False,
-        beta=0.05):
+        beta=0.05,
+        round=0):
     """
     Compute the trimmed mean of a list of learners_ensemble and store it into learner
 
@@ -175,7 +176,7 @@ def byzantine_robust_aggregate_tm(
 
             N_removed = int(beta*len(learners))
             if average_params:
-                sorted_params, _ = torch.sort(torch.stack(param_val[key], dim=0), dim=0)
+                sorted_params, indices = torch.sort(torch.stack(param_val[key], dim=0), dim=0)
                 target_state_dict[key].data = torch.mean(sorted_params[N_removed:-N_removed], dim=0)
             
             if average_gradients:
