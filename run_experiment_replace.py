@@ -41,27 +41,18 @@ if __name__ == "__main__":
     print("The current time in New York is:", currentTimeInNewYork)
 
     ## INPUT GROUP 1 - experiment macro parameters ##
-    atk_nums = [1, 5, 10, 20]
-    best_chkpts = [49, 25, 45, 49]
+    atk_nums = [1]
     client_weights = np.load(
         "/home/ubuntu/Documents/jiarui/experiments/multi_atker/client_weights.npy"
     )
-
     # calculate the theoretical best scale for each attack number
     best_scales = [1 / client_weights[0:atk_num].sum() for atk_num in atk_nums]
-    params = []
-    for idx, scale in enumerate(best_scales):
-        if scale - 4 <= 0:
-            for i in range(1, int(scale+1)):
-                params.append((atk_nums[idx], i, best_chkpts[idx]))
-            params.append((atk_nums[idx], scale, best_chkpts[idx]))
-            params.append((atk_nums[idx], scale + 1, best_chkpts[idx]))
-            params.append((atk_nums[idx], scale + 2, best_chkpts[idx]))
-        else:
-            for i in range(0, 10, 2):
-                params.append((atk_nums[idx], scale + i - 4, best_chkpts[idx]))
 
-    exp_names = [f"atk_{atk_num}_scale{scale}" for (atk_num, scale, best_chkpt) in params]
+    model_paths = [
+        f"/home/ubuntu/Documents/jiarui/experiments/FAT_progressive/FedAvg_adv_progressive/weights/gt{i}"
+        for i in range(1, 250, 4)
+    ]
+    exp_names = [f"probe_at_epoch{i}" for i in range(1, 250, 4)]
 
     exp_root_path = input("exp_root_path>>>>")
     path_log = open(f"{exp_root_path}/path_log", mode="w")
@@ -100,8 +91,9 @@ if __name__ == "__main__":
         args_.save_path = (
             f"{exp_root_path}/{exp_names[itt]}/weights"  # weight save path
         )
-        args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/FedAvg_adv/gt_1leaner_adv/weights/gt200"
-        args_.rep_path = f"/home/ubuntu/Documents/jiarui/experiments/extra_train_inject/extra_train/client_num{params[itt][0]}/weights/chkpts_{params[itt][2]}/weights/chkpts_0.pt"
+        args_.load_path = model_paths[itt]
+        args_.rep_path = f"{model_paths[itt]}/chkpts_0.pt"
+        # args_.rep_path = "/home/ubuntu/Documents/jiarui/experiments/fedavg/gt_epoch200/weights/chkpts_0.pt"
         args_.validation = False
         args_.aggregation_op = None
 
@@ -126,19 +118,19 @@ if __name__ == "__main__":
             load_root = os.path.join(args_.load_path)
             aggregator.load_state(load_root)
 
-            args_.n_rounds = 1
+            args_.n_rounds = 5
             aggregator.update_clients()  # update the client's parameters immediatebly, since they should have an up-to-date consistent global model before training starts
 
         # Perform label swapping attack for a set number of clients
-        args_.atk_count = params[itt][0]
-        args_.atk_round = 1
+        args_.atk_count = 1
+        args_.atk_round = args_.n_rounds
         atk_count = args_.atk_count
         atk_round = args_.atk_round
         for i in range(atk_count):
             client_weight = aggregator.clients_weights[i]
-            print(f"attacking with scale {params[itt][1]}")
+            print(f"attacking with scale {best_scales[0]}")
             aggregator.clients[i].turn_malicious(
-                factor=params[itt][1],
+                factor=best_scales[0],
                 attack="replacement",
                 atk_round=args_.n_rounds - atk_round,  # attack rounds in the end
                 replace_model_path=args_.rep_path,
@@ -171,12 +163,16 @@ if __name__ == "__main__":
             if aggregator.c_round != current_round:
                 pbar.update(1)
                 current_round = aggregator.c_round
+            
+            dist_dict = model_distance(aggregator.global_learners_ensemble[0].model, global_learners_ensemble_copy[0].model)
 
-        if "save_path" in args_:
-            save_root = os.path.join(args_.save_path)
+            if "save_path" in args_:
+                save_root = os.path.join(args_.save_path, f"round{current_round}")
 
-            os.makedirs(save_root, exist_ok=True)
-            aggregator.save_state(save_root)
+                os.makedirs(save_root, exist_ok=True)
+                aggregator.save_state(save_root)
+                torch.save(dist_dict, f"{save_root}/dist_dict.pt")
+
 
         save_arg_log(f_path=args_.logs_root, args=args_)
         np.save(

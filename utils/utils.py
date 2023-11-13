@@ -1,4 +1,5 @@
 import time
+import copy
 
 from models import *
 from datasets import *
@@ -565,5 +566,21 @@ def save_arg_log(f_path, args):
         str(args.__dict__)
     )
     f.close()
+
+def model_distance(model1, model2):
+    """
+    :param model1: model 1
+    :param model2: model 2
+    :return: distance between model1 and model2
+    """
+    model1_params = model1.state_dict()
+    model2_params = model2.state_dict()
+    res_params = copy.deepcopy(model1_params)
+
+    for key in model1_params:
+        res_params[key] = model1_params[key] - model2_params[key]
+        
+    return res_params
+
 
 
