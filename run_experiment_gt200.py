@@ -33,9 +33,10 @@ import numba
 if __name__ == "__main__":
     
     # Input group 1
-    exp_names = ['fedavg']
-    exp_method = ['FedAvg']
-    exp_num_learners = [1]
+    defenses = ["median", "krum"]
+    exp_names = [f'def_{defense}3' for defense in defenses]
+    exp_method = ['FedAvg_adv']*len(exp_names)
+    exp_num_learners = [1]*len(exp_names)
     # exp_lr = 0.01
     adv_mode = [False]
     
@@ -50,7 +51,7 @@ if __name__ == "__main__":
         args_.input_dimension = None
         args_.output_dimension = None
         args_.n_learners= exp_num_learners[itt]
-        args_.n_rounds = 200 # Reduced number of steps
+        args_.n_rounds = 150 # Reduced number of steps
         args_.bz = 128
         args_.local_steps = 1
         args_.lr_lambda = 0
@@ -67,10 +68,11 @@ if __name__ == "__main__":
         args_.verbose = 1
         args_.validation = False
         args_.save_freq = 10
+        args_.aggregation_op = defenses[itt]
 
         # Other Argument Parameters
         Q = 10 # update per round
-        G = 0.15
+        G = 0.40
         num_clients = 40 # 40 for cifar 10, 50 for cifar 100
         S = 0.05 # Threshold
         step_size = 0.01
@@ -85,8 +87,8 @@ if __name__ == "__main__":
         
         print("running trial:", itt, "out of", len(exp_names)-1)
         
-        args_.logs_root = f'/home/ubuntu/Documents/jiarui/experiments/{exp_names[itt]}/gt_epoch200/logs'
-        args_.save_path = f'/home/ubuntu/Documents/jiarui/experiments/{exp_names[itt]}/gt_epoch200/weights'      # weight save path
+        args_.logs_root = f'/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/def_baselines/{exp_names[itt]}/logs'
+        args_.save_path = f'/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/def_baselines/{exp_names[itt]}/weights'      # weight save path
 
         # Generate the dummy values here
         aggregator, clients = dummy_aggregator(args_, num_clients)
@@ -97,7 +99,7 @@ if __name__ == "__main__":
         pbar = tqdm(total=args_.n_rounds)
         current_round = 0
         while current_round <= args_.n_rounds:
-            if "save_path" in args_:    # store the 199 epoch checkpoint
+            if "save_path" in args_ and (current_round+1) % 10 == 0:    # store the 199 epoch checkpoint
                 save_root = os.path.join(args_.save_path, f"round_{current_round}")
 
                 os.makedirs(save_root, exist_ok=True)
@@ -116,7 +118,7 @@ if __name__ == "__main__":
             os.makedirs(save_root, exist_ok=True)
             aggregator.save_state(save_root)
 
-        save_arg_log(f_path = args_.logs_root, args = args_)
+        save_arg_log(f_path = args_.logs_root, args = args_, name = "args")
             
         del aggregator, clients
         torch.cuda.empty_cache()
