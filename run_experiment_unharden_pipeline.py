@@ -35,7 +35,9 @@ if __name__ == "__main__":
     path_log = open(f"{exp_root_path}/path_log", mode="w")
     path_log.write(f"FedAvg\n")
 
-    exp_names = [f"unharden_trial{i}" for i in range(1, 6)]
+    # start_epoch = [i for i in range(10, 50, 10)] + [45, 49]
+    # exp_names = [f"start_epoch{i}" for i in range(1, 6)]
+    exp_names = [f"inspect_tm"]
     G_val = [0.4] * len(exp_names)
 
     torch.manual_seed(42)
@@ -53,7 +55,7 @@ if __name__ == "__main__":
         args_.input_dimension = None
         args_.output_dimension = None
         args_.n_learners = 1  # Number of hypotheses assumed in system
-        args_.n_rounds = 50  # Number of rounds training takes place
+        args_.n_rounds = 15  # Number of rounds training takes place
         args_.bz = 128
         args_.local_steps = 1
         args_.lr_lambda = 0
@@ -72,7 +74,7 @@ if __name__ == "__main__":
         args_.save_path = f"{exp_root_path}/{exp_names[itt]}"
         args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline/atk_start/weights"  # load the model from the 150 FAT epoch
         args_.validation = False
-        args_.aggregation_op = None
+        args_.aggregation_op = "trimmed_mean"
         args_.save_interval = 5
         # args_.synthetic_train_portion = None
 
@@ -97,6 +99,7 @@ if __name__ == "__main__":
         args_adv = copy.deepcopy(args_)
         args_adv.method = "unharden"
         args_adv.num_clients = 5
+        args_adv.aggregation_op = None
         # args_adv.synthetic_train_portion = 1.0
         adv_aggregator, adv_clients = dummy_aggregator(args_adv, args_adv.num_clients)
 
@@ -121,8 +124,10 @@ if __name__ == "__main__":
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/unharden/weights\n")
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/before_replace/weights\n")
         path_log.write(f"{exp_root_path}/{exp_names[itt]}/replace/weights\n")
-        for i in range(0, args_.n_rounds, args_.save_interval):
-            path_log.write(f"{exp_root_path}/{exp_names[itt]}/FAT_train/weights/gt{i}\n")
+
+        # for i in range(0, args_.n_rounds, args_.save_interval):
+        #     path_log.write(f"{exp_root_path}/{exp_names[itt]}/FAT_train/weights/gt{i}\n") # no need to eval FAT model for so many times
+
         for i in range(args_adv.unharden_start_round + 5, args_.n_rounds, args_.save_interval):
             path_log.write(f"{exp_root_path}/{exp_names[itt]}/unharden_train/weights/gt{i}\n")
 
