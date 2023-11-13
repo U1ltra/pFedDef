@@ -89,4 +89,24 @@ def mv_file():
     for epoch in epoch_set:
         os.system(f"cp {weigths_path} {base_path}/chkpts_{epoch}/weights/train_client_weights.npy")
 
+def inspect_tm():
+    base_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/unharden_rep_pipeline_inspect_tm"
+    rounds = [i for i in range(1, 16, 1)]
+    tm_indices = [torch.load(f"{base_path}/tm_indices_round{i}.pt") for i in rounds]
+
+    remove_idx = [0, 1, -1, -2]
+    remove_map = torch.zeros(40, len(rounds))
+    for i, index in enumerate(tm_indices):
+        print(f"round {i+1}", end=": ")
+        for idx in remove_idx:
+            print(index[idx].shape, end=" ")
+            removed = index[idx]
+            flat = torch.flatten(removed)
+            unique_values, counts = torch.unique(flat, return_counts=True)
+            for value, count in zip(unique_values, counts):
+                remove_map[value][i] += count
+        print()
+    
+    print(remove_map)
+
 markdown_table()
