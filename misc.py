@@ -256,7 +256,7 @@ def pipeline_results():
     defense_mechanisms = [None]
     atk_clients = [1]
     atk_rounds = [0]
-    alpha = [0.3, 0.6, 0.9]
+    alpha = [0.3]
     params = []
     for defense in defense_mechanisms:
         for atk_client in atk_clients:
@@ -269,20 +269,22 @@ def pipeline_results():
         defense, atk_client, atk_round, a = param
         print(f"\n--------------------------{defense} {atk_client} {atk_round} {a}--------------------------")
 
-        base_path = f"/home/ubuntu/Documents/jiarui/experiments/verify_correlation2/def_{defense}_atk_client_{atk_client}_atk_round_{atk_round}_alpha_{a}"
-        stage_names = [] # "atk_start", "unharden", "before_replace", "replace"
+        # base_path = f"/home/ubuntu/Documents/jiarui/experiments/verify_correlation2/def_{defense}_atk_client_{atk_client}_atk_round_{atk_round}_alpha_{a}"
+        base_path = f"/home/ubuntu/Documents/jiarui/experiments/NeurlPS_workshop/unharden_FAT_no_def_cifar10/def_None_atk_client_3_atk_round_1_reviewImprove"
+        stage_names = ["unharden", "before_replace", "replace"] # "atk_start", "unharden", "before_replace", "replace"
         stage_paths = [f"{base_path}/{name}/weights/eval" for name in stage_names]
 
         train_names = ["FAT_train", "unharden_train"]
-        for i in range(0, 5):
-            stage_paths.append(f"{base_path}/{train_names[0]}/weights/gt{i}/eval")
-        stage_paths.append(f"{base_path}/{train_names[0]}/weights/gt00/eval")
-        # for i in range(0, 21, 10):
-        #     stage_paths.append(f"{base_path}/{train_names[1]}/weights/gt{i}/eval")
+        # for i in range(0, 250, 20):
+        #     if i != 0:
+        #         stage_paths.append(f"{base_path}/{train_names[0]}/weights/gt{i-1}/eval")
+        #     else:
+        #         stage_paths.append(f"{base_path}/{train_names[0]}/weights/gt{i}/eval")
+        for i in range(0, 50, 5):
+            stage_paths.append(f"{base_path}/{train_names[1]}/weights/gt{i}/eval")
         
-        stage_names.extend(range(0, 5))
-        stage_names.extend("00")
-        # stage_names.extend(range(0, 21, 10))
+        # stage_names.extend(range(0, 250, 20))
+        stage_names.extend(range(0, 50, 5))
 
         placeHolder1 = '-' * 10
         print(f"| {placeHolder1} | {placeHolder1} | {placeHolder1} |")
@@ -295,6 +297,11 @@ def pipeline_results():
             acc = np.load(acc_path)
             adv_acc = np.load(adv_acc_path)
             print(f"| {stage_names[i]:<10} | {np.sum(acc) / (acc.shape[0] * acc.shape[1]) * 100:9.3f} | {np.sum(adv_acc) / (adv_acc.shape[0] * adv_acc.shape[1]) * 100:9.3f} |")
+            
+            # pring std
+            external_adv_acc_path = f"{stage_path}/all_adv_acc_external.npy"
+            external_adv_acc = 0
+            print(f"| {stage_names[i]:<10} | {np.std(acc) * 100:9.4f} | {np.std(adv_acc) * 100:9.4f} | {np.std(external_adv_acc) * 100:9.4f} | (std)")
 
 def cal_params_l2(model_dict):
     total_params = 0
@@ -304,25 +311,27 @@ def cal_params_l2(model_dict):
     return total_params ** 0.5
 
 def experiments_loop():
-    defenses = ["trimmed_mean", "median", "krum_modelwise"]
+    defenses = ["trimmed_mean", "median"]
     fracs = [1]
+    atk_clients = [5]
     params = []
     for defense in defenses:
-        for frac in fracs:
-            params.append((defense, frac))
-    round_list = [i for i in range(0,2)] + [2]    # normal rounds + last round
+        for atk_client in atk_clients:
+            params.append((defense, atk_client))
+    round_list = [0, 0]
     
     for param in params:
-        defense, frac = param
+        defense, atk_client = param
         abbrev = "tm" if defense == "trimmed_mean" else defense
         print(f"\n--------------------------{defense}--------------------------")
 
         # base_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_global_weight_consistent/def_{defense}_frac{frac}"
         # base_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_def2/def_{defense}"
         # base_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/test/def_trimmed_mean_weight_0.0"
-        base_path = f"/home/ubuntu/Documents/jiarui/experiments/update_dist/boost_FAT/rep_def_{defense}_atk_client_{frac}"
+        base_path = f"/home/ubuntu/Documents/jiarui/experiments/NeurlPS_workshop/diff_replace_configs/fedavg2FAT/def_{defense}_atk_client_{atk_client}_atk_round_1"
+        # base_path = f"/home/ubuntu/Documents/jiarui/experiments/NeurlPS_workshop/diff_replace_configs/fedavg2FAT_def/def_{defense}_atk_client_5_atk_round_1"
 
-        process_removed_indices(base_path, defense, abbrev, base_path.split('/')[-1], 40, frac, round_list)
+        process_removed_indices(base_path, defense, abbrev, base_path.split('/')[-1], 40, atk_client, round_list)
         # process_model_difference(base_path, round_list)
         # process_updates(base_path, round_list)
 
@@ -373,6 +382,7 @@ def process_removed_indices(base_path, defense, abbrev, id, client_num, atk_clie
     if len(normal_rounds) != 0:
         normal_rounds = torch.stack(normal_rounds).to(torch.float32)
         avg_normal = normal_rounds.mean(dim=0) / total_params
+        print(torch.mean(avg_normal[0:atk_client_num]))
         # bar plot
         # new figure
         plt.figure()
@@ -533,46 +543,78 @@ def cal_correlation():
                 combined_dict[key1] = value1
         return combined_dict
     
-    benign_model_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/before_replace/weights"
+    # benign_model_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/before_replace/weights"
+    benign_model_path = "/home/ubuntu/Documents/jiarui/experiments/NeurlPS_workshop/unharden_FAT_no_def_cifar10/def_None_atk_client_5_atk_round_1/before_replace/weights"
     atk_model_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/unharden/weights"
-    alpha = 0.6
+    # atk_model_path = "/home/ubuntu/Documents/jiarui/experiments/fedavg/gt_epoch200/weights/round_199"
+    alphas = [0.9]
 
-    benign_model = torch.load(f"{benign_model_path}/chkpts_0.pt")
-    atk_model = torch.load(f"{atk_model_path}/chkpts_0.pt")
-    atk_model = model_weighted_avg(benign_model, atk_model, alpha=alpha)
+    for alpha in alphas:
 
-    diffs_dict = {}
-    for key in benign_model:
-        if benign_model[key].data.dtype == torch.float32:
-            diffs_dict[key] = benign_model[key] - atk_model[key]
-        else:
-            diffs_dict[key] = benign_model[key]
-    
-    update_dump_path = f"/home/ubuntu/Documents/jiarui/experiments/verify_correlation_enable_FAT/def_None_atk_client_1_atk_round_0_alpha_{alpha}/dump"
-    with open(f"{update_dump_path}/round0_update.pkl", 'rb') as file:
-        load_updates = pickle.load(file)
-    global_updates = load_updates[0]
+        benign_model = torch.load(f"{benign_model_path}/chkpts_0.pt")
+        target_model = torch.load(f"{atk_model_path}/chkpts_0.pt")
 
-    def flatten_parameters(model_dict):
-        flattened_params = []
-        for key, value in model_dict.items():
+        atk_model = model_weighted_avg(benign_model, target_model, alpha=alpha)
+
+        diffs_dict = {}
+        for key in benign_model:
             if benign_model[key].data.dtype == torch.float32:
-                if isinstance(value, torch.Tensor):
-                    value = value.cpu()
-                    flattened_params.extend(value.flatten().numpy())
-        return np.array(flattened_params)
+                diffs_dict[key] = benign_model[key] - target_model[key]
+            else:
+                diffs_dict[key] = benign_model[key]
+        
+        update_dump_path = f"/home/ubuntu/Documents/jiarui/experiments/improvement_231016/unharden_direction_2/def_None_atk_client_5_atk_round_1_alpha_{alpha}/dump"
+        with open(f"{update_dump_path}/round0_update.pkl", 'rb') as file:
+            load_updates = pickle.load(file)
+        global_updates = load_updates[0]
+        malicious_updates = load_updates[1]
 
-    for idx, update in enumerate(global_updates):
-        # calculate the correlation
-        update_flat = flatten_parameters(update)
-        diffs_flat = flatten_parameters(diffs_dict)
-        correlation = np.corrcoef(update_flat, diffs_flat)
-        print("", idx, " ", correlation[0,1])
+        def flatten_parameters(model_dict):
+            flattened_params = []
+            for key, value in model_dict.items():
+                if benign_model[key].data.dtype == torch.float32:
+                    if isinstance(value, torch.Tensor):
+                        value = value.cpu()
+                        flattened_params.extend(value.flatten().numpy())
+            return np.array(flattened_params)
+
+        print("benign model")
+        correlations = []
+        for idx, update in enumerate(global_updates):
+            # calculate the correlation
+            update_flat = flatten_parameters(update)
+            diffs_flat = flatten_parameters(diffs_dict)
+            # normalize the update
+            update_flat = update_flat / np.linalg.norm(update_flat)
+            diffs_flat = diffs_flat / np.linalg.norm(diffs_flat)
+
+            correlation = np.corrcoef(update_flat, diffs_flat)
+            correlations.append(correlation[0,1])
+            # print("", idx, " ", correlation[0,1])
+        print("avg correlation: ", np.mean(correlations))
+        print("std correlation: ", np.std(correlations))
+
+        print("malicious updates")
+        correlations = []
+        for idx, update in enumerate(malicious_updates):
+            # calculate the correlation
+            update_flat = flatten_parameters(update)
+            diffs_flat = flatten_parameters(diffs_dict)
+            # normalize the update
+            update_flat = update_flat / np.linalg.norm(update_flat)
+            diffs_flat = diffs_flat / np.linalg.norm(diffs_flat)
+
+            correlation = np.corrcoef(update_flat, diffs_flat)
+            correlations.append(correlation[0,1])
+            # print("", idx, " ", correlation[0,1])
+        print("avg correlation: ", np.mean(correlations))
+        print("std correlation: ", np.std(correlations))
+
 
 
 # removed_indices()
-# pipeline_results()
+pipeline_results()
 # markdown_table3()
 # experiments_loop()
-cal_correlation()
+# cal_correlation()
 
