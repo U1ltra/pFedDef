@@ -124,7 +124,7 @@ def byzantine_robust_aggregate_tm(
         weights=None,
         average_params=True,
         average_gradients=False,
-        beta=0.05,
+        beta=0.15,
         dump_path=None):
     """
     Compute the trimmed mean of a list of learners_ensemble and store it into learner
