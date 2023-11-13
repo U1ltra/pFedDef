@@ -573,7 +573,21 @@ class CentralizedAggregator(Aggregator):
             if self.aggregation_op is None:
                 average_learners(learners, learner, weights=self.clients_weights)
             elif self.aggregation_op == "trimmed_mean":
-                byzantine_robust_aggregate_tm(learners, learner, beta=0.05)
+                byzantine_robust_aggregate_tm(learners, learner, beta=0.05, round=self.c_round+1)
+            elif self.aggregation_op == 'median':
+                byzantine_robust_aggregate_median(
+                    learners, 
+                    learner, 
+                    weights=self.clients_weights,
+                )
+            elif self.aggregation_op == 'krum':
+                byzantine_robust_aggregate_krum(
+                    learners, 
+                    learner, 
+                    weights=self.clients_weights,
+                )
+            else:
+                raise NotImplementedError
 
         # assign the updated model to all clients
         self.update_clients()
