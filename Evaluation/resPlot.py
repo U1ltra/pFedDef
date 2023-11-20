@@ -55,28 +55,44 @@ def plotBars(x1, x2, x3, y1, y2, y3, title, xlabel, y1label, y2label, x1ticks, x
     plt.savefig(savePath, dpi=244, bbox_inches='tight', pad_inches=0.1)
     plt.show()
 
-def plot_unharden_training(x, y1, y2, save_path):
+def plot_unharden_training(x, y, labels, colors, save_path):
     import matplotlib.pyplot as plt
     import matplotlib
 
     # Create the figure and axes
     fig, ax = plt.subplots(figsize=(6, 4), dpi=100)
 
-    # Plot the lines
-    ax.plot(x, y1, label='Test Acc.', marker = 'o')
-    ax.plot(x, y2, label='Adv. Acc. (White-Box)', marker = 'o', linestyle = '--')
+    for idx in range(0, len(y), 2):
+        print(idx)
+        y1 = y[idx]
+        y2 = y[idx + 1]
+        color_idx = int(idx / 2)
 
-    font = {'family' : 'normal',
-            'weight' : 'normal',
-            'size'   : 15}
+        # Plot the lines
+        ax.plot(
+            x, y1, label=labels[color_idx], c=colors[color_idx], #marker = 'o'
+        )
+        ax.plot(
+            x, y2, linestyle = '--', c=colors[color_idx], #marker = 'o'
+        )
 
-    matplotlib.rc('font', **font)
+        font = {'family' : 'normal',
+                'weight' : 'normal',
+                'size'   : 15}
 
-    # Add some text for labels, title, and legend
-    ax.set_xlabel('Rounds of Extraction')
-    ax.set_ylabel('Accuracy')
-    ax.set_title('ARU-E Extraction From FAT')
-    ax.legend()
+        matplotlib.rc('font', **font)
+
+        # Add some text for labels, title, and legend
+        ax.set_xlabel('Rounds of Extraction', fontsize=15)
+        ax.set_ylabel('Accuracy', fontsize=15)
+        ax.set_title('ARU-E Extraction From FAT', fontsize=15)
+        ax.tick_params(axis='both', which='major', labelsize=15)
+        legend = ax.legend(loc='lower left', fontsize=15)
+
+        # box = ax.get_position()
+        # ax.set_position([box.x0, box.y0 + box.height * 0.1,
+        #                 box.width, box.height * 0.9])
+        # ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05))
 
     plt.savefig(save_path, dpi=300)
     plt.show()
