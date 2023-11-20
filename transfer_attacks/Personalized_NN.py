@@ -294,6 +294,10 @@ class Adv_NN(Personalized_NN):
 
                 self.x_adv = self.x_orig + delta
             
+            # move to cuda
+            x_val_min = x_val_min.cuda()
+            x_val_max = x_val_max.cuda()
+            
             self.x_adv = torch.clamp(self.x_adv, x_val_min, x_val_max)
             self.x_adv = Variable(self.x_adv.data, requires_grad=True)
 
