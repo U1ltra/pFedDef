@@ -309,6 +309,14 @@ class Learner:
 
             self.optimizer.zero_grad()
 
+            if x.shape[0] == 1:
+                # duplicate the last batch if the batch size is 1, to avoid batch norm layer error
+                print("batch size is 1, duplicate the last batch")
+                x = torch.cat([x, x]).to(self.device).type(torch.float32)
+                y = torch.cat([y, y]).to(self.device)
+                indices = torch.cat([indices, indices])
+
+
             y_pred = self.model(x)
 
             loss_vec = self.criterion(y_pred, y)
