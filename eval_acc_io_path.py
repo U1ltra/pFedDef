@@ -1,4 +1,5 @@
 # Import General Libraries
+import gc
 import os
 import argparse
 import torch
@@ -153,41 +154,6 @@ for f_path in paths[3:]:
                 new_weight_dict[key] = w0[0]*weights_h[0][key] 
             new_model.load_state_dict(new_weight_dict)
             models_test += [new_model]
-    elif setting == 'FedEM':
-        root_path = f"{f_path}/weights"
-        
-        args_.save_path = root_path
-        aggregator.load_state(args_.save_path)
-        
-        # This is where the models are stored -- one for each mixture --> learner.model for nn
-        hypotheses = aggregator.global_learners_ensemble.learners
-
-        # obtain the state dict for each of the weights 
-        weights_h = []
-
-        for h in hypotheses:
-            weights_h += [h.model.state_dict()]
-
-        weights = np.load(f"{root_path}/train_client_weights.npy")
-
-        # Set model weights
-        model_weights = []
-
-        for i in range(num_models):
-            model_weights += [weights[i]]
-
-        # Generate the weights to test on as linear combinations of the model_weights
-        models_test = []
-
-        for (w0,w1,w2) in model_weights:
-            # first make the model with empty weights
-            new_model = copy.deepcopy(hypotheses[0].model)
-            new_model.eval()
-            new_weight_dict = copy.deepcopy(weights_h[0])
-            for key in weights_h[0]:
-                new_weight_dict[key] = w0*weights_h[0][key] + w1*weights_h[1][key] + w2*weights_h[2][key]
-            new_model.load_state_dict(new_weight_dict)
-            models_test += [new_model]
     else:
         raise NotImplementedError
 
@@ -263,22 +229,34 @@ for f_path in paths[3:]:
             logs_adv[adv_idx]['adv_similarities_target'] = copy.deepcopy(t1.adv_similarities)        
             logs_adv[adv_idx]['adv_target'] = copy.deepcopy(t1.adv_target_hit)
 
-            # Miss attack Untargeted
-            t1.atk_params.set_params(
-                batch_size=batch_size, 
-                iteration = 10,
-                target = -1, 
-                x_val_min = torch.min(data_x), 
-                x_val_max = torch.max(data_x),
-                step_size = 0.01, 
-                step_norm = "inf", 
-                eps = eps, 
-                eps_norm = 2
-            )
-            t1.generate_xadv(atk_type = "pgd")
-            t1.send_to_victims(victim_idxs)
-            logs_adv[adv_idx]['adv_miss'] = copy.deepcopy(t1.adv_acc_transfers)
-            logs_adv[adv_idx]['adv_similarities_untarget'] = copy.deepcopy(t1.adv_similarities)
+            # # Miss attack Untargeted
+            # t1.atk_params.set_params(
+            #     batch_size=batch_size, 
+            #     iteration = 10,
+            #     target = -1, 
+            #     x_val_min = torch.min(data_x), 
+            #     x_val_max = torch.max(data_x),
+            #     step_size = 0.01, 
+            #     step_norm = "inf", 
+            #     eps = eps, 
+            #     eps_norm = 2
+            # )
+            # t1.generate_xadv(atk_type = "pgd")
+            # t1.send_to_victims(victim_idxs)
+            # logs_adv[adv_idx]['adv_miss'] = copy.deepcopy(t1.adv_acc_transfers)
+            # logs_adv[adv_idx]['adv_similarities_untarget'] = copy.deepcopy(t1.adv_similarities)
+
+            print(torch.cuda.memory_summary(device=None, abbreviated=False))
+            # move all the tensors to cpu
+            for key in logs_adv[adv_idx]:
+                if logs_adv[adv_idx][key] is not None:
+                    for i in range(len(logs_adv[adv_idx][key])):
+                        logs_adv[adv_idx][key][i] = logs_adv[adv_idx][key][i].cpu()
+            del t1
+            del dataloader
+            torch.cuda.empty_cache()
+            gc.collect()
+            print(torch.cuda.memory_summary(device=None, abbreviated=False))
 
         # Aggregate Results Across clients 
         metrics = ['orig_acc_transfers','orig_similarities','adv_acc_transfers','adv_similarities_target',
@@ -288,9 +266,9 @@ for f_path in paths[3:]:
         orig_sim = np.zeros([len(victim_idxs),len(victim_idxs)]) 
         adv_acc = np.zeros([len(victim_idxs),len(victim_idxs)]) 
         adv_sim_target = np.zeros([len(victim_idxs),len(victim_idxs)]) 
-        adv_sim_untarget = np.zeros([len(victim_idxs),len(victim_idxs)]) 
+        # adv_sim_untarget = np.zeros([len(victim_idxs),len(victim_idxs)]) 
         adv_target = np.zeros([len(victim_idxs),len(victim_idxs)])
-        adv_miss = np.zeros([len(victim_idxs),len(victim_idxs)]) 
+        # adv_miss = np.zeros([len(victim_idxs),len(victim_idxs)]) 
 
         for adv_idx in range(len(victim_idxs)):
             for victim in range(len(victim_idxs)):
@@ -298,9 +276,9 @@ for f_path in paths[3:]:
                 orig_sim[adv_idx,victim] = logs_adv[victim_idxs[adv_idx]][metrics[1]][victim_idxs[victim]].data.tolist()
                 adv_acc[adv_idx,victim] = logs_adv[victim_idxs[adv_idx]][metrics[2]][victim_idxs[victim]].data.tolist()
                 adv_sim_target[adv_idx,victim] = logs_adv[victim_idxs[adv_idx]][metrics[3]][victim_idxs[victim]].data.tolist()
-                adv_sim_untarget[adv_idx,victim] = logs_adv[victim_idxs[adv_idx]][metrics[4]][victim_idxs[victim]].data.tolist()
+                # adv_sim_untarget[adv_idx,victim] = logs_adv[victim_idxs[adv_idx]][metrics[4]][victim_idxs[victim]].data.tolist()
                 adv_target[adv_idx,victim] = logs_adv[victim_idxs[adv_idx]][metrics[5]][victim_idxs[victim]].data.tolist()
-                adv_miss[adv_idx,victim] = logs_adv[victim_idxs[adv_idx]][metrics[6]][victim_idxs[victim]].data.tolist()
+                # adv_miss[adv_idx,victim] = logs_adv[victim_idxs[adv_idx]][metrics[6]][victim_idxs[victim]].data.tolist()
 
         store_eval_path = f"{f_path}/eval"
         if not os.path.exists(store_eval_path):
