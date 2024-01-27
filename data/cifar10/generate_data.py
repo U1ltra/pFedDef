@@ -120,16 +120,26 @@ def main():
                 seed=args.seed
             )
     else:
-        clients_indices = \
-            split_dataset_by_labels(
-                dataset=dataset,
-                n_classes=N_CLASSES,
-                n_clients=args.n_tasks,
-                n_clusters=args.n_components,
-                alpha=args.alpha,
-                frac=args.s_frac,
-                seed=args.seed
-            )
+        trial = 0
+        while trial < 100:
+            clients_indices = \
+                split_dataset_by_labels(
+                    dataset=dataset,
+                    n_classes=N_CLASSES,
+                    n_clients=args.n_tasks,
+                    n_clusters=args.n_components,
+                    alpha=args.alpha,
+                    frac=args.s_frac,
+                    seed=args.seed + trial
+                )
+            if trial % 10 == 0:
+                print("Trial {} failed".format(trial))
+            trial += 1
+            
+            # if non of the clients has 0 samples
+            if all([len(indices) > 0 for indices in clients_indices]):
+                print("Trial {} has been successful".format(trial))
+                break
 
     if args.test_tasks_frac > 0:
         train_clients_indices, test_clients_indices = \
@@ -142,6 +152,7 @@ def main():
 
     for mode, clients_indices in [('train', train_clients_indices), ('test', test_clients_indices)]:
         for client_id, indices in enumerate(clients_indices):
+            print("Client {} has {} samples".format(client_id, len(indices)))
             if len(indices) == 0:
                 continue
 
