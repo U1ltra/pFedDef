@@ -3,5 +3,11 @@ Evaluation/plots
 Evaluation/.ipynb_checkpoints
 data/cifar10/all_data
 data/cifar10/raw_data
+data/cifar10/prev
+data/celeba/all_data
+data/celeba/raw_data
+data/celeba/prev
+data/cifar100/all_data
+data/cifar100/raw_data
 __pycache__
 .vscode
