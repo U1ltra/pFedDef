@@ -87,7 +87,7 @@ args_.dump_path = None
 # Generate the dummy values here
 aggregator, clients = dummy_aggregator(args_, num_user=40)
 
-for f_path in paths[1:]:
+for f_path in paths[3:]:
     print(f"Working on {f_path}")
     sys.stdout.flush()
     # Compiling Dataset from Clients
@@ -231,7 +231,7 @@ for f_path in paths[1:]:
             
             batch_size = min(custom_batch_size, dataloader.y_data.shape[0])
             
-            t1 = Transferer(models_list=models_test, dataloader=dataloader)
+            t1 = Transferer(models_list=models_test, dataloader=dataloader, adv_generate_model_list=models_test)
             t1.generate_victims(victim_idxs)
             
             # Perform Attacks Targeted

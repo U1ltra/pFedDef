@@ -313,6 +313,8 @@ class Adv_NN(Personalized_NN):
         iteration= atk_params.iteration
         x_val_min= atk_params.x_val_min
         x_val_max= atk_params.x_val_max
+        x_val_max = x_val_max.cuda()
+        x_val_min = x_val_min.cuda()
         
         # Load data to perturb
     
