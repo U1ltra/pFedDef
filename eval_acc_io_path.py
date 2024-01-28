@@ -187,6 +187,11 @@ for f_path in paths[3:]:
     for flag in test_pair:
         print(f"eval path {f_path}")
 
+        store_eval_path = f"{f_path}/eval"
+        if os.path.exists(f"{store_eval_path}/all_adv_acc.npy"):
+            print("Already exists ", f"{store_eval_path}/all_adv_acc.npy")
+            continue
+
         for adv_idx in victim_idxs:
             print("\t Adv idx:", adv_idx)
             
@@ -261,7 +266,6 @@ for f_path in paths[3:]:
                 adv_target[adv_idx,victim] = logs_adv[victim_idxs[adv_idx]][metrics[5]][victim_idxs[victim]].data.tolist()
                 # adv_miss[adv_idx,victim] = logs_adv[victim_idxs[adv_idx]][metrics[6]][victim_idxs[victim]].data.tolist()
 
-        store_eval_path = f"{f_path}/eval"
         if not os.path.exists(store_eval_path):
             os.makedirs(store_eval_path)
         if flag:
@@ -270,6 +274,18 @@ for f_path in paths[3:]:
         else:
             np.save(f"{store_eval_path}/all_acc.npy", orig_acc)
             np.save(f"{store_eval_path}/all_adv_acc.npy", adv_acc)
+
+        if f_path != paths[-1]:
+            raise Exception("Start another evaluation process")
+
+        # delete all the uneccessary variables
+        del orig_acc
+        del orig_sim
+        del adv_acc
+        del adv_sim_target
+        del adv_target
+        torch.cuda.empty_cache()
+        gc.collect()
 
 
 newYorkTz = pytz.timezone("America/New_York")
