@@ -229,24 +229,6 @@ for f_path in paths[3:]:
             logs_adv[adv_idx]['adv_similarities_target'] = copy.deepcopy(t1.adv_similarities)        
             logs_adv[adv_idx]['adv_target'] = copy.deepcopy(t1.adv_target_hit)
 
-            # # Miss attack Untargeted
-            # t1.atk_params.set_params(
-            #     batch_size=batch_size, 
-            #     iteration = 10,
-            #     target = -1, 
-            #     x_val_min = torch.min(data_x), 
-            #     x_val_max = torch.max(data_x),
-            #     step_size = 0.01, 
-            #     step_norm = "inf", 
-            #     eps = eps, 
-            #     eps_norm = 2
-            # )
-            # t1.generate_xadv(atk_type = "pgd")
-            # t1.send_to_victims(victim_idxs)
-            # logs_adv[adv_idx]['adv_miss'] = copy.deepcopy(t1.adv_acc_transfers)
-            # logs_adv[adv_idx]['adv_similarities_untarget'] = copy.deepcopy(t1.adv_similarities)
-
-            print(torch.cuda.memory_summary(device=None, abbreviated=False))
             # move all the tensors to cpu
             for key in logs_adv[adv_idx]:
                 if logs_adv[adv_idx][key] is not None:
@@ -256,7 +238,6 @@ for f_path in paths[3:]:
             del dataloader
             torch.cuda.empty_cache()
             gc.collect()
-            print(torch.cuda.memory_summary(device=None, abbreviated=False))
 
         # Aggregate Results Across clients 
         metrics = ['orig_acc_transfers','orig_similarities','adv_acc_transfers','adv_similarities_target',
