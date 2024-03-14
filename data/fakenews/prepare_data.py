@@ -46,17 +46,44 @@ def data_to_embedding(data, save_path, train=True, start_idx=0):
             if train:
                 np.save(f'{save_path}/{save_name}_labels_{idx}.npy', data['label'].values)
 
+def data_to_embedding(save_path, start_idx=0):
+    save_path = './raw_data/raw_embeddings/'
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
 
-save_path = './raw_data/raw_embeddings/'
-if not os.path.exists(save_path):
-    os.makedirs(save_path)
+    train_data = pandas.read_csv('train.csv')
+    test_data = pandas.read_csv('test.csv')
 
-train_data = pandas.read_csv('train.csv')
-test_data = pandas.read_csv('test.csv')
+    # remove nan if text or label is nan
+    train_data = train_data.dropna(subset=['text', 'label'])
+    test_data = test_data.dropna(subset=['text'])
 
-# remove nan if text or label is nan
-train_data = train_data.dropna(subset=['text', 'label'])
-test_data = test_data.dropna(subset=['text'])
+    data_to_embedding(train_data, save_path, train=True, start_idx=16609)
+    data_to_embedding(test_data, save_path, train=False)
 
-data_to_embedding(train_data, save_path, train=True, start_idx=16609)
-data_to_embedding(test_data, save_path, train=False)
+def cat_npys(save_path, train=True):
+    save_name = 'train' if train else 'test'
+    embeddings = []
+    ids = []
+    labels = []
+    for file in os.listdir(save_path):
+        if file.startswith(f'{save_name}_embeddings'):
+            embeddings.append(np.load(f'{save_path}/{file}'))
+            ids.append(np.load(f"{save_path}/{file.replace('embeddings', 'ids')}"))
+            if train:
+                labels.append(np.load(f"{save_path}/{file.replace('embeddings', 'labels')}"))
+
+    embeddings = np.concatenate(embeddings)
+    ids = np.concatenate(ids)
+    if train:
+        labels = np.concatenate(labels)
+
+    np.save(f'{save_path}/{save_name}_embeddings.npy', embeddings)
+    np.save(f'{save_path}/{save_name}_ids.npy', ids)
+    if train:
+        np.save(f'{save_path}/{save_name}_labels.npy', labels)
+
+if __name__ == '__main__':
+    # data_to_embedding()
+    cat_npys('./raw_data/raw_embeddings/', train=True)
+    cat_npys('./raw_data/raw_embeddings/', train=False)
