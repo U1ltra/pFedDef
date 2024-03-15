@@ -822,7 +822,10 @@ class Adv_Client(Client):
             except:
                 x_val_unnorm = unnormalize_femnist(x_val_normed)
         
-            self.train_iterator.dataset.data[idx] = x_val_unnorm
+            # move to cpu
+            # x_val_unnorm = x_val_unnorm.cpu()
+            # need to reshape for fakeNews case since fakeNews is not transformed to 3 channel by PIL (which is the case for CIFAR10)
+            self.train_iterator.dataset.data[idx] = x_val_unnorm.reshape(self.train_iterator.dataset.data[idx].shape) 
 
             if self.unhardened_portion is not None and np.random.rand() < self.unhardened_portion:
                 y_val = y_adv[i]
@@ -1000,8 +1003,13 @@ class Unharden_Client(Client):
          # Flush current used dataset with original
         self.train_iterator = deepcopy(self.og_dataloader)
 
-        self.build_synthetic_data()
-        self.build_unharden_data()
+        if self.counter < 20:
+            print("swap_dataset_labels | counter: ", self.counter)
+            self.swap_dataset_labels(10, switch_pair=False)
+        else:
+            print("reset_dataset_labels | counter: ", self.counter)
+            self.build_synthetic_data()
+            self.build_unharden_data()
 
         self.train_loader = iter(self.train_iterator)
         return

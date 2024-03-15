@@ -322,7 +322,10 @@ class Learner:
             loss_vec = self.criterion(y_pred, y)
             if weights is not None:
                 weights = weights.to(self.device)
-                loss = (loss_vec.T @ weights[indices]) / loss_vec.size(0)
+                if len(loss_vec.size()) == 1:
+                    loss = (loss_vec @ weights[indices]) / loss_vec.size(0)
+                else:
+                    loss = (torch.transpose(loss_vec, 0, 1) @ weights[indices]) / loss_vec.size(0)
 
             else:
                 loss = loss_vec.mean()

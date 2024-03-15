@@ -68,7 +68,10 @@ class SyntheticDataset(Dataset):
         all_targets = self.targets
 
         img, target = all_data[index], int(all_targets[index])
-
+        
+        if self.dataset.name == 'fakeNews':
+            return img, target, index
+            
         img = Image.fromarray(img.numpy())
 
         if self.transform is not None:
@@ -77,6 +80,8 @@ class SyntheticDataset(Dataset):
         return img, target, index
 
     def gen_synthetic_data(self, poriton):
+        if poriton == 0:
+            return
 
         synthetic_data = torch.randint(
             self.orig_data.min(), 
@@ -276,6 +281,55 @@ class SubEMNIST(Dataset):
 
         return img, target, index
 
+class FakeNewsDataset(Dataset):
+    def __init__(self, path, fakeNews_data=None, fakeNews_targets=None, transform=None):
+        with open(path, "rb") as f:
+            self.indices = pickle.load(f)
+
+        if transform is None:
+            self.transform =\
+                Compose([
+                    ToTensor(),
+                    Normalize((0.1307,), (0.3081,))
+                ])
+
+        if fakeNews_data is None or fakeNews_targets is None:
+            self.data, self.targets = get_fakenews()
+        else:
+            self.data, self.targets = fakeNews_data, fakeNews_targets
+
+        self.data = self.data[self.indices]
+        self.targets = self.targets[self.indices]
+        assert len(self.data) == len(self.targets), "data and targets must have the same length"
+
+        self.name = 'fakeNews'
+
+    def __len__(self):
+        return self.data.size(0)
+    
+    def __getitem__(self, index):
+        embed, target = self.data[index], int(self.targets[index])
+        return embed, target, index
+
+    
+def get_fakenews():
+    fakenews_path = os.path.join("data", "fakenews", "raw_data")
+    assert os.path.isdir(fakenews_path), "Download fakeNews dataset!!"
+    
+    fakenews_train = np.load(os.path.join(fakenews_path, "train_embeddings.npy"))
+    # fakeNews_test = np.load(os.path.join(fakeNews_path, "test_embeddings.npy"))
+
+    fakenews_train_labels = np.load(os.path.join(fakenews_path, "train_labels.npy"))
+    # fakeNews_test_labels = np.load(os.path.join(fakeNews_path, "test_labels.npy")) # no test labels
+
+    # expend the dataset by 10 duplications
+    # np to tensor
+    fakenews_train = torch.tensor(fakenews_train)
+    fakenews_train_labels = torch.tensor(fakenews_train_labels)
+    # reshape each tensor from [768,] to [16, 16, 3]
+    fakenews_train = fakenews_train.view(-1, 3, 16, 16)
+
+    return fakenews_train, fakenews_train_labels
 
 class SubCIFAR10(Dataset):
     """
@@ -322,6 +376,8 @@ class SubCIFAR10(Dataset):
 
         self.data = self.data[self.indices]
         self.targets = self.targets[self.indices]
+
+        self.name = 'cifar10'
 
     def __len__(self):
         return self.data.size(0)

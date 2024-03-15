@@ -10,6 +10,7 @@ LOADER_TYPE = {
     "femnist": "femnist",
     "shakespeare": "shakespeare",
     "mnist": "mnist",
+    "fakenews": "fakenews",
 }
 
 EXTENSIONS = {
@@ -20,6 +21,7 @@ EXTENSIONS = {
     "femnist": ".pt",
     "shakespeare": ".txt",
     "mnist" : ".pkl",
+    "fakenews": ".pkl",
 }
 
 AGGREGATOR_TYPE = {
