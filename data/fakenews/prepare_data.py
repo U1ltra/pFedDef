@@ -38,13 +38,13 @@ def data_to_embedding(data, save_path, train=True, start_idx=0):
 
             # save the embeddings
             save_name = 'train' if train else 'test'
-            if os.path.exists(f'{save_path}/{save_name}_embeddings_{idx}.npy'):
-                raise ValueError(f'File {save_path}/{save_name}_embeddings_{idx}.npy already exists')
+            if os.path.exists(f'{save_path}/{save_name}_embeddings_{start_idx}_{idx}.npy'):
+                raise ValueError(f'File {save_path}/{save_name}_embeddings_{start_idx}_{idx}.npy already exists')
             
-            np.save(f'{save_path}/{save_name}_embeddings_{idx}.npy', cls_embeddings_arr)
-            np.save(f'{save_path}/{save_name}_ids_{idx}.npy', data['id'].values)
+            np.save(f'{save_path}/{save_name}_embeddings_{start_idx}_{idx}.npy', cls_embeddings_arr)
+            np.save(f'{save_path}/{save_name}_ids_{start_idx}_{idx}.npy', data['id'].values)
             if train:
-                np.save(f'{save_path}/{save_name}_labels_{idx}.npy', data['label'].values)
+                np.save(f'{save_path}/{save_name}_labels_{start_idx}_{idx}.npy', data['label'].values)
 
 def data_to_embedding(save_path, start_idx=0):
     save_path = './raw_data/raw_embeddings/'
@@ -64,24 +64,12 @@ def data_to_embedding(save_path, start_idx=0):
 def cat_npys(save_path, train=True):
     save_name = 'train' if train else 'test'
     embeddings = []
-    ids = []
-    labels = []
     for file in os.listdir(save_path):
         if file.startswith(f'{save_name}_embeddings'):
             embeddings.append(np.load(f'{save_path}/{file}'))
-            ids.append(np.load(f"{save_path}/{file.replace('embeddings', 'ids')}"))
-            if train:
-                labels.append(np.load(f"{save_path}/{file.replace('embeddings', 'labels')}"))
-
+            print(f'Loaded {file} | embeddings shape: {embeddings[-1].shape}')
     embeddings = np.concatenate(embeddings)
-    ids = np.concatenate(ids)
-    if train:
-        labels = np.concatenate(labels)
-
     np.save(f'{save_path}/{save_name}_embeddings.npy', embeddings)
-    np.save(f'{save_path}/{save_name}_ids.npy', ids)
-    if train:
-        np.save(f'{save_path}/{save_name}_labels.npy', labels)
 
 if __name__ == '__main__':
     # data_to_embedding()

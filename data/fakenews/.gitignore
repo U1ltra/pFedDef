@@ -1,0 +1,5 @@
+all_data/
+raw_data/
+train.csv
+test.csv
+submit.csv
