@@ -72,6 +72,14 @@ def get_learner(
             metric = accuracy
             model = LinearLayer(input_dim, output_dim).to(device)
             is_binary_classification = False
+    elif name == "fakenews":
+        criterion = nn.CrossEntropyLoss(reduction="none").to(device)
+        metric = accuracy
+        is_binary_classification = False
+        # criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
+        # metric = binary_accuracy
+        # is_binary_classification = True
+        model = get_mobilenet(n_classes=2).to(device)
     elif name == "cifar10":
         criterion = nn.CrossEntropyLoss(reduction="none").to(device)
         metric = accuracy
@@ -300,6 +308,8 @@ def get_loader(type_, path, batch_size, train, inputs=None, targets=None, reserv
         dataset = CharacterDataset(path, chunk_len=SHAKESPEARE_CONFIG["chunk_len"])
     elif type_ == "mnist":
         dataset = SubMNIST(path, mnist_data=inputs, mnist_targets=targets)
+    elif type_ == "fakenews":
+        dataset = FakeNewsDataset(path)
     else:
         raise NotImplementedError(f"{type_} not recognized type; possible are {list(LOADER_TYPE.keys())}")
 
