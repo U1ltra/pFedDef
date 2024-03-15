@@ -17,8 +17,8 @@ SEED = 12345
 PATH = "all_data/"
 
 def get_movieLens():
-    X = np.load('ratings.npy')
-    Y = np.load('labels.npy')
+    X = np.load('ml-25m/ratings.npy')
+    Y = np.load('ml-25m/labels.npy')
 
     return torch.tensor(X).float(), torch.tensor(Y)
 

@@ -67,3 +67,15 @@ python generate_data.py \
 Note: 
 1. If you encountered problem downloading the img_align_celeba.zip file. Try downloading it from
 2. Random seed 12345 will cause client 6 has no points
+
+
+#### MovieLens
+``` bash
+python generate.py \
+    --n_tasks 40 \
+    --n_components 3 \
+    --alpha 0.4 \
+    --s_frac 1.0 \
+    --tr_frac 0.8 \
+    --seed 12345 
+```
