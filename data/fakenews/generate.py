@@ -142,8 +142,8 @@ def main():
                     frac=args.s_frac,
                     seed=args.seed + trial
                 )
-            if trial % 10 == 0:
-                print("Trial {} failed".format(trial))
+            if trial % 10 == 0 and trial > 0:
+                print("Trial {} has failed".format(trial))
             trial += 1
             
             # if non of the clients has 0 samples
