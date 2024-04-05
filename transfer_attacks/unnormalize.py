@@ -27,3 +27,6 @@ def unnormalize_femnist(normed):
     a = unnormalize(normed)
     b = a.clone().detach().requires_grad_(True)
     return b
+
+def unnormalize_fake_news(normed):
+    return normed.clone().detach().requires_grad_(False)

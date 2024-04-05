@@ -817,10 +817,16 @@ class Adv_Client(Client):
         for i in range(sample_id.shape[0]):
             idx = sample_id[i]
             x_val_normed = x_adv[i]
-            try:
+            if self.train_iterator.dataset.name == 'cifar10':
                 x_val_unnorm = unnormalize_cifar10(x_val_normed)
-            except:
+            elif self.train_iterator.dataset.name == 'fakeNews':
+                x_val_unnorm = unnormalize_fake_news(x_val_normed)
+            elif self.train_iterator.dataset.name == 'femnist':
                 x_val_unnorm = unnormalize_femnist(x_val_normed)
+            else:
+                print("Error: Dataset not recognized")
+            
+            # raise ValueError("Stop here")
         
             # move to cpu
             # x_val_unnorm = x_val_unnorm.cpu()
@@ -829,7 +835,7 @@ class Adv_Client(Client):
 
             if self.unhardened_portion is not None and np.random.rand() < self.unhardened_portion:
                 y_val = y_adv[i]
-                self.train_iterator.dataset.targets[idx] = y_val
+                self.train_iterator.dataset.targets[idx] = y_val.detach()
         
         self.train_loader = iter(self.train_iterator)
         
@@ -986,10 +992,14 @@ class Unharden_Client(Client):
         x_adv_res = []
         for i in range(x_adv.shape[0]):
             x_val_normed = x_adv[i]
-            try:
+            if self.train_iterator.dataset.name == 'cifar10':
                 x_val_unnorm = unnormalize_cifar10(x_val_normed)
-            except:
+            elif self.train_iterator.dataset.name == 'fakeNews':
+                x_val_unnorm = unnormalize_fake_news(x_val_normed)
+            elif self.train_iterator.dataset.name == 'femnist':
                 x_val_unnorm = unnormalize_femnist(x_val_normed)
+            else:
+                print("Error: Dataset not recognized")
 
             # x_adv[i] = x_val_unnorm
             x_adv_res.append(x_val_unnorm)
@@ -1003,7 +1013,7 @@ class Unharden_Client(Client):
          # Flush current used dataset with original
         self.train_iterator = deepcopy(self.og_dataloader)
 
-        if self.counter < 20:
+        if self.counter < 0:
             print("swap_dataset_labels | counter: ", self.counter)
             self.swap_dataset_labels(10, switch_pair=False)
         else:
