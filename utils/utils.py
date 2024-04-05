@@ -76,10 +76,7 @@ def get_learner(
         criterion = nn.CrossEntropyLoss(reduction="none").to(device)
         metric = accuracy
         is_binary_classification = False
-        # criterion = nn.BCEWithLogitsLoss(reduction="none").to(device)
-        # metric = binary_accuracy
-        # is_binary_classification = True
-        model = get_mobilenet(n_classes=2).to(device)
+        model = FakeNewsClassifier(input_dim=768, hidden_dim=768, output_dim=2).to(device)
     elif name == "cifar10":
         criterion = nn.CrossEntropyLoss(reduction="none").to(device)
         metric = accuracy
@@ -630,6 +627,6 @@ def diff_dict(model1, model2):
 def print_current_time():
     newYorkTz = pytz.timezone("America/New_York")
     timeInNewYork = datetime.now(newYorkTz)
-    currentTimeInNewYork = timeInNewYork.strftime("%H:%M:%S")
+    currentTimeInNewYork = timeInNewYork.strftime("%Y-%m-%d %H:%M:%S")
     print("The current time in New York is:", currentTimeInNewYork)
     print("The current date in New York is:", timeInNewYork.date())

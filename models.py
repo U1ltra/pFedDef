@@ -14,6 +14,21 @@ class LinearLayer(nn.Module):
     def forward(self, x):
         return self.fc(x)
 
+class FakeNewsClassifier(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim=2):
+        super(FakeNewsClassifier, self).__init__()
+        # Input dim would be 768 for BERT-Base
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.dropout = nn.Dropout(0.5)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)  # Output layer for binary classification
+        
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        # x = torch.sigmoid(self.fc2(x))
+        return x
+
 
 # class FemnistCNN(nn.Module):
 #     """
