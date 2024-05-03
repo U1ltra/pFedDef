@@ -34,17 +34,19 @@ import numba
 
 
 def exp_config():
-    defense_mechanisms = [None]
-    atk_client_num = [1, 3]
-    atk_start_rounds = [0]
+    defense_mechanisms = ["flame"]
+    atk_client_num = [5]
+    atk_start_rounds = [200]
     atk_rounds = [1]
+    trial_num = 1
     alphas = [0.1, 0.3, 0.5, 0.7, 0.9]  # alpha * benign_model + (1 - alpha) * atk_model
 
     for defense in defense_mechanisms:
         for atk_client in atk_client_num:
             for atk_start in atk_start_rounds:
                 for atk_round in atk_rounds:
-                    yield defense, atk_client, atk_start, atk_round
+                    for trial in range(trial_num):
+                        yield defense, atk_client, atk_start, atk_round, trial
 
 
 if __name__ == "__main__":
@@ -52,7 +54,7 @@ if __name__ == "__main__":
 
     inputs_config = input("inputs_config>>>>")
     # exp_root_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/test"
-    # inputs_config = f"{exp_root_path} celeba 5"
+    # inputs_config = f"{exp_root_path} cifar10 40"
 
     config_items = inputs_config.split()
     exp_root_path, dataset, num_clients = config_items
@@ -67,8 +69,8 @@ if __name__ == "__main__":
 
     torch.manual_seed(42)
 
-    for defense, atk_client, atk_start, atk_round in exp_generator:
-        exp_name = f"def_{defense}_atk_client_{atk_client}_atk_round_{atk_round}_reviewImprove"
+    for defense, atk_client, atk_start, atk_round, trial in exp_generator:
+        exp_name = f"def_{defense}_atk_client_{atk_client}_atk_round_{atk_round}_trial_{trial}_benignARU"
         exp_save_path = os.path.join(exp_root_path, exp_name)
         print(f"Running experiment: {exp_name}")
 
@@ -77,7 +79,7 @@ if __name__ == "__main__":
         args_.method = "FedAvg_adv"  # Method of training
         args_.experiment = dataset
         args_.n_learners = 1  # Number of hypotheses assumed in system
-        args_.n_rounds = 50  # Number of rounds training takes place
+        args_.n_rounds = 250  # Number of rounds training takes place
         args_.bz = 128
         args_.lr = 0.03  # Learning rate
         args_.log_freq = 20
@@ -87,14 +89,14 @@ if __name__ == "__main__":
         # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/fixedCode/unharden_pip_unharden_portions/unharden_0.4/before_replace/weights"
         # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/FAT_progressive/FedAvg_adv_progressive/weights/gt199"
         # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/NeurlPS_workshop/unharden_FAT_no_def_cifar10/def_None_atk_client_5_atk_round_1/before_replace/weights"
-        # atk_client_str = "5" if atk_client == 1 else str(atk_client)
-        # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/NeurlPS_workshop/unharden_FAT_no_def_cifar10/def_None_atk_client_{atk_client_str}_atk_round_1/before_replace/weights"
-        args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/NeurlPS_workshop/unharden_FAT_no_def_cifar10/def_None_atk_client_5_atk_round_1/atk_start/weights"
+        # args_.load_path = f"/home/ubuntu/Documents/jiarui/experiments/NeurlPS_workshop/unharden_FAT_no_def_cifar10/def_None_atk_client_5_atk_round_1/atk_start/weights"
+        # args_.load_path = "/home/ubuntu/Documents/jiarui/experiments/atk_pipeline/test/def_None_atk_client_5_atk_round_1_trial_0_benignARU/atk_start/weights"
         print("experiment : ", args_.experiment)
 
         args_.aggregation_op = defense
-        args_.save_interval = 20
+        args_.save_interval = 5
         args_.eval_train = False
+        args_.eval_unharden_train = True
         args_.synthetic_train_portion = None
         args_.reserve_size = None
         args_.data_portions = None
@@ -102,7 +104,7 @@ if __name__ == "__main__":
         args_.dump_path = f"{exp_save_path}/dump"
         args_.dump_interval = int(args_.n_rounds / 4) if args_.n_rounds >= 4 else 1
         args_.dump_model_diff = False
-        args_.dump_updates = True
+        args_.dump_updates = False
         args_.num_clients = num_clients  # Number of clients to train with
 
         Q = 10  # ADV dataset update freq
@@ -134,7 +136,7 @@ if __name__ == "__main__":
         args_adv.method = "unharden"
         args_adv.num_clients = atk_client
         args_adv.reserve_size = 3.0  # data sample size reserved for each client. 3.0 means 3 times the size of the original dataset at a given client
-        args_adv.synthetic_train_portion = 1.0  # the portion of the synthetic data in proportion to the original dataset
+        args_adv.synthetic_train_portion = 0.0  # the portion of the synthetic data in proportion to the original dataset
         args_adv.unharden_source = "orig"  # the source of the unharden data (orig, synthetic, or orig+synthetic)
         args_adv.data_portions = (
             0.0,
@@ -267,7 +269,7 @@ if __name__ == "__main__":
                 #     args_adv.unharden_type = unharden_type  # use weight projection for the round before last round, where the replacement happens
                 # else:
                 #     args_adv.unharden_type = None
-
+                print("?????")
                 adv_aggregator.mix(args_adv.unharden_type, args_adv.unharden_params)
 
                 if (
@@ -299,14 +301,14 @@ if __name__ == "__main__":
 
                 if (
                     args_adv.save_interval is not None
-                    and current_round % args_adv.save_interval == 0
+                    and (current_round + 1) % args_adv.save_interval == 0
                     or current_round == args_adv.unharden_start_round
                 ):
                     save_root = os.path.join(
                         args_adv.save_path, f"unharden_train/weights/gt{current_round}"
                     )
                     logger.save_model(adv_aggregator, save_root)
-                    if args_adv.eval_train:
+                    if args_adv.eval_unharden_train:
                         logger.write_path_log(f"{save_root}")
 
             if aggregator.c_round != current_round:
