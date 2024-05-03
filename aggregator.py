@@ -656,6 +656,19 @@ class CentralizedAggregator(Aggregator):
                     learner,
                     dump_path=dump_path
                 )
+            elif self.aggregation_op == 'flame':
+                dump_path = (
+                    os.path.join(self.dump_path, f"round{self.c_round}_flame.pkl")
+                    if dump_flag
+                    else None
+                )
+                byzantine_robust_aggregate_flame(
+                    learners,
+                    learner,
+                    weights=self.clients_weights,
+                    dump_path=dump_path,
+                    std=0.05
+                )
             else:
                 raise NotImplementedError
 
@@ -665,8 +678,9 @@ class CentralizedAggregator(Aggregator):
 
         self.c_round += 1
 
-        if self.c_round % self.log_freq == 0:
+        if self.c_round % self.log_freq == 0 or self.c_round < 20:
             self.write_logs()
+            print(flush=True)
 
     def update_clients(self):
         for client in self.clients:

@@ -6,7 +6,10 @@ import torch
 import torch.nn as nn
 import numpy as np
 import itertools
+import hdbscan
 from collections import defaultdict
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import minimum_spanning_tree
 
 
 def krum_learners(learners, target_learner, f):
@@ -554,4 +557,159 @@ def simplex_projection(v, s=1):
 
     return w
 
+def HDBSCAN_clustering(cosine_distance_matrix):    
+    """
+    Compute the HDBSCAN clustering
 
+    :param cosine_distance_matrix:
+    :type cosine_distance_matrix: torch.Tensor
+
+    """
+    # torch.Tensor -> numpy array, float64
+    cosine_distance_matrix = cosine_distance_matrix.cpu().detach().numpy()
+    cosine_distance_matrix = cosine_distance_matrix.astype(np.float64)
+    
+    # Calculate the minimum cluster size as specified (N/2 + 1)
+    N = cosine_distance_matrix.shape[0]  # Number of data points
+    min_cluster_size = N // 2 + 1
+
+    # Initialize HDBSCAN with the specified parameters
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, 
+                                min_samples=1, 
+                                metric='precomputed',
+                                allow_single_cluster=True)
+    
+    # Fit the model on the distance matrix
+    # Note: HDBSCAN expects a distance matrix when metric='precomputed'
+    cluster_labels = clusterer.fit_predict(cosine_distance_matrix)
+
+    # find the largest cluster
+    cluster_sizes = np.unique(cluster_labels, return_counts=True)
+    cluster_sizes = list(zip(*cluster_sizes))
+    cluster_sizes = sorted(cluster_sizes, key=lambda x: x[1], reverse=True)
+    largest_cluster = cluster_sizes[0][0]
+    admitted_learners_idx = [i for i, label in enumerate(cluster_labels) if label == largest_cluster]
+
+    return admitted_learners_idx
+
+def clip_model(model, target, adapt_clip_bound, euclidean_dist):
+    """
+    Clip the model parameters to be within the adapt_clip_bound
+
+    :param model:
+    :type model: nn.Module
+    :param target:
+    :type target: nn.Module
+    :param adapt_clip_bound:
+    :type adapt_clip_bound: float
+    :param euclidean_dist:
+    :type euclidean_dist: float
+
+    """
+    for param, target_param in zip(model.parameters(), target.parameters()):
+        if param.data.dtype == torch.float32:
+            clipped_param = target_param.data + (param.data - target_param.data) * min(adapt_clip_bound / euclidean_dist, 1)
+            param.data = clipped_param
+
+def average_admitted_learners(admitted_learners, target_learner):
+    """
+    Average the admitted learners
+
+    :param admitted_learners:
+    :type admitted_learners: List[Learner]
+    :param target_learner:
+    :type target_learner: Learner
+
+    """
+    N = len(admitted_learners)
+    weights = (1 / N) * torch.ones(N, device=admitted_learners[0].device)
+    average_learners(admitted_learners, target_learner, weights, average_params=True, average_gradients=False)
+
+def get_params(model, dtype=torch.float32):
+    """
+    Get the model parameters
+
+    :param model:
+    :type model: nn.Module
+    :param dtype:
+    :type dtype: torch.dtype
+
+    """
+    dict_params = model.state_dict()
+    list_params = [dict_params[key].data.view(-1) for key in dict_params if dict_params[key].data.dtype == dtype]
+    return list_params
+    
+
+def byzantine_robust_aggregate_flame(
+    learners,
+    target_learner,
+    weights,
+    std,
+    dump_path=None
+):
+    """
+    Compute the FLAME aggregation.
+
+    :param learners:
+    :type learners: List[Learner]
+    :param target_learner:
+    :type target_learner: Learner
+    :param weights: tensor of the same size as learners_ensemble, having values between 0 and 1, and summing to 1,
+                    if None, uniform learners_weights are used
+    :param average_params: if set to true the parameters are averaged; default is True
+    :param average_gradients: if set to true the gradient are also averaged; default is False
+    :type weights: torch.Tensor
+
+    """
+    # calculate pairwise cosine distance
+    N = len(learners)
+    cos_dist = torch.zeros((N, N))
+    for i in range(N):
+        for j in range(N):
+            if i != j:
+                cos_dist[i, j] = torch.nn.functional.cosine_similarity(
+                    torch.cat(get_params(learners[i].model, dtype=torch.float32)),
+                    torch.cat(get_params(learners[j].model, dtype=torch.float32)),
+                    dim=0
+                )
+    cosine_distance_matrix = 1 - cos_dist
+
+    # cluster the learners using HDBSCAN
+    admitted_learners_idx = HDBSCAN_clustering(cosine_distance_matrix)
+
+    # calculate eclidian distance between all learners and the target learner
+    l2_norm_diff = torch.zeros(N)
+    target_params = torch.cat(get_params(target_learner.model, dtype=torch.float32))
+    for i in range(N):
+        learner_params = torch.cat(get_params(learners[i].model, dtype=torch.float32))
+        l2_norm_diff[i] = torch.norm(learner_params - target_params, p=2)
+
+    # find the learner with the median distance to the target learner
+    sorted_indices = torch.argsort(l2_norm_diff)
+    median_idx = sorted_indices[N // 2] if N % 2 == 1 else sorted_indices[N // 2 - 1]
+    adapt_clip_bound = l2_norm_diff[median_idx]
+
+    # admit learners after clipping
+    admitted_learners = [learners[i] for i in admitted_learners_idx]
+    for i, learner in enumerate(admitted_learners):
+        clip_model(learner.model, target_learner.model, adapt_clip_bound, l2_norm_diff[admitted_learners_idx[i]])
+    
+    # average the admitted learners
+    average_admitted_learners(admitted_learners, target_learner)
+
+    # average_admitted_learners(learners, target_learner)
+    # average_learners(learners, target_learner, weights, average_params=True, average_gradients=False)
+
+    # add Gaussian noise to the target learner
+    min_n = torch.normal(mean=0.0, std=std, size=target_learner.model.parameters().__next__().data.size()).min()
+    max_n = torch.normal(mean=0.0, std=std, size=target_learner.model.parameters().__next__().data.size()).max()
+    # print("noise min max >>> ", min_n, max_n)
+    # for param in target_learner.model.parameters():
+    #     if param.data.dtype == torch.float32:
+    #         noise = torch.normal(mean=0.0, std=std, size=param.data.size(), device=param.device)
+    #         param.data += noise
+
+    # dump the indices of the sorted learners
+    if dump_path is not None:
+        with open(dump_path, 'wb') as f:
+            pickle.dump(admitted_learners_idx, f)
